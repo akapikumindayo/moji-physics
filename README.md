@@ -1,7 +1,10 @@
-# moji-physics-
+# moji-physics
 文字を物理法則に則って弄べるものです。　You can play with 'moji' according to the laws of physics.(This text was translated by automatic translation.)
 
 これは日本語しか対応していません！　This only supports Japanese! (You can use other languages for the text though)
+
+プレイはこちらから
+https://akapikumindayo.github.io/moji-physics/
 
 仕組み・クレジット:
 ・ブラウザ上で完結する安全な設計です。
