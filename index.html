@@ -436,23 +436,32 @@ magnets.forEach((bodyB, i) => {
         const vec = Vector.sub(bodyA.position, bodyB.position);
         const distance = Vector.magnitude(vec);
 
-        if (distance < 300 && distance > 10) {
+        if (distance < 300 && distance > 30) {
             const forceMagnitude = (bodyB.mass * bodyA.mass) / (distance * distance) * 5; 
             const force = Vector.mult(Vector.normalise(vec), forceMagnitude);
 
-            // 同じ極(N-N, S-S)なら反発(neg)、違う極なら引き合う
-            const isSamePole = bodyB.customText.magnet === bodyA.customText.magnet;
-            const finalForce = isSamePole ? Vector.neg(force) : force;
+            // 基本となる引き合う力（引力）の向き
+const vec = Vector.sub(bodyA.position, bodyB.position);
+const distance = Vector.magnitude(vec);
 
-            // 動いている（固定されていない）ボディにだけ力を加える
-            if (!bodyB.isStatic) {
-                // bodyBにはbodyAから遠ざかる方向（neg）または近づく方向の力を加える
-                Body.applyForce(bodyB, bodyB.position, Vector.neg(finalForce));
-            }
-            if (!bodyA.isStatic) {
-                // bodyAにはbodyBから遠ざかる方向または近づく方向の力を加える
-                Body.applyForce(bodyA, bodyA.position, finalForce);
-            }
+if (distance < 300 && distance > 10) {
+    const forceMagnitude = (bodyB.mass * bodyA.mass) / (distance * distance) * 5; 
+    // bodyBからbodyAに向かう方向の力（引力）
+    const force = Vector.mult(Vector.normalise(vec), forceMagnitude);
+
+    const isSamePole = bodyB.customText.magnet === bodyA.customText.magnet;
+
+    if (!bodyB.isStatic) {
+        // 同じ極なら反発（-force）、違う極なら吸引（+force）
+        const forceToB = isSamePole ? Vector.neg(force) : force;
+        Body.applyForce(bodyB, bodyB.position, forceToB);
+    }
+    if (!bodyA.isStatic) {
+        // bodyAには作用・反作用で常にbodyBと逆向きの力をかける
+        const forceToA = isSamePole ? force : Vector.neg(force);
+        Body.applyForce(bodyA, bodyA.position, forceToA);
+    }
+}
         }
     }
 });
