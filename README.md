@@ -40,6 +40,12 @@ https://youtu.be/U_FU_5plhl8
 -s-青磁石.
 -n-赤磁石.
 
+バーチャルキーボードがあります:
+-右下のボタンでバーチャルキーボードを展開できます.
+-バーチャルキーボード展開中は選択中のものがオレンジになります.
+-オレンジは元の文字色に上書きする形なので選択中のものは何極か色で見分けられません.
+-空中をタップ（クリック）すると選択を外せます.
+
 Mechanism & Credits:
 - It's a safe design that works entirely in the browser.
 - Developed in collaboration with Gemini.
@@ -70,3 +76,9 @@ Controls:
 - B: Wind
 - S: Blue magnet
 - N: Red magnet
+
+A virtual keyboard is available:
+- You can open the virtual keyboard using the button at the bottom right.
+- While the virtual keyboard is open, the currently selected item is highlighted in orange.
+- Since the orange highlight overlays the original text color, you cannot distinguish the specific color of the selected item.
+- You can deselect the item by tapping (or clicking) in empty space.
