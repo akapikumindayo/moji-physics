@@ -613,7 +613,7 @@ Events.on(engine, 'collisionEnd', (event) => {
 // addConnectedObject の修正（引数に font を追加）
 // 引数に font = 'serif' を追加
 function handleAdd() {
-    const val = input.value.trim();
+    let val = input.value.trim().replace(/：/g, ':');
     if (!val) return;
 
     let targetFont = 'serif'; 
@@ -626,8 +626,6 @@ function handleAdd() {
         displayText = parts[1];
         if (!displayText) return;
     }
-
-    // --- ここから修正：特殊コマンド判定を先に行い、該当したら return で抜ける ---
 
     // 1. トランポリン
     if (displayText === "トランポリン") {
