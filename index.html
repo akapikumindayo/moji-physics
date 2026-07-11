@@ -613,19 +613,22 @@ Events.on(engine, 'collisionEnd', (event) => {
 // addConnectedObject の修正（引数に font を追加）
 // 引数に font = 'serif' を追加
 function handleAdd() {
+    // 入力された文字列を取得し、全角の「：」があれば半角の「:」にすべて変換して統一する
     let val = input.value.trim().replace(/：/g, ':');
     if (!val) return;
 
     let targetFont = 'serif'; 
     let displayText = val;
 
-    // A. フォント指定の分離
+    // A. フォント指定の分離（半角に統一されているので、これで全角・半角どちらの入力でも正しく切り分けられます）
     if (val.includes(':')) {
         const parts = val.split(':');
         targetFont = parts[0];
         displayText = parts[1];
         if (!displayText) return;
     }
+
+    // --- ここから特殊コマンド判定（すべて半角コロン「:」基準で判定されるようになります） ---
 
     // 1. トランポリン
     if (displayText === "トランポリン") {
