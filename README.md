@@ -9,7 +9,6 @@
 仕組み・クレジット:
 ・ブラウザ上で完結する安全な設計です。
 ・Geminiと協力して開発しました。
-・なぜか磁石は同じ極が引き付けあいます。
 ・固定した磁石に磁石状態のものを近づけると右上に文字が飛んでいきます。
 
 要素:
@@ -39,7 +38,6 @@
 Mechanism & Credits:
 - It's a safe design that works entirely in the browser.
 - Developed in collaboration with Gemini.
-- For some reason, magnets with the same pole attract each other.
 - When you bring a magnetized object close to a fixed magnet, letters fly off to the top right.
 
 Elements:
