@@ -14,6 +14,7 @@ https://youtu.be/U_FU_5plhl8
 -Geminiと協力して開発しました.
 -固定した磁石に磁石状態のものを近づけると右上に文字が飛んでいきます.
 -ジャンジャン動画などに使用してもらってOKです.
+-自分が作ったという虚偽の主張はやめてください.
 
 要素:
 文字の種類(alphabet,ひらがな,カタカナ,漢字,数字)によって性質が少しずつ違います.
@@ -44,6 +45,7 @@ Mechanism & Credits:
 - Developed in collaboration with Gemini.
 - When you bring a magnetized object close to a fixed magnet, letters fly off to the top right.
 - You’re totally okay to use it in videos and stuff as much as you want.
+- Please stop making false claims that you made it.
 
 Elements:
 - The properties vary slightly depending on the type of 'moji' (alphabet, hiragana, katakana, kanji, numbers).
