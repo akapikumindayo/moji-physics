@@ -613,22 +613,14 @@ Events.on(engine, 'collisionEnd', (event) => {
 // addConnectedObject の修正（引数に font を追加）
 // 引数に font = 'serif' を追加
 function handleAdd() {
-    // 入力された文字列を取得し、全角の「：」があれば半角の「:」にすべて変換して統一する
+    // 1. まず入力された文字列を取得し、全角の「：」をすべて半角の「:」に統一する
     let val = input.value.trim().replace(/：/g, ':');
     if (!val) return;
 
     let targetFont = 'serif'; 
     let displayText = val;
 
-    // A. フォント指定の分離（半角に統一されているので、これで全角・半角どちらの入力でも正しく切り分けられます）
-    if (val.includes(':')) {
-        const parts = val.split(':');
-        targetFont = parts[0];
-        displayText = parts[1];
-        if (!displayText) return;
-    }
-
-    // --- ここから特殊コマンド判定（すべて半角コロン「:」基準で判定されるようになります） ---
+    // --- 【重要】先に特殊コマンド判定を行う（displayTextはまだ元の文字列のまま） ---
 
     // 1. トランポリン
     if (displayText === "トランポリン") {
@@ -644,7 +636,7 @@ function handleAdd() {
         return;
     }
 
-    // 3. 鎖・つなげる
+    // 3. 鎖・つなげる（「つなげる:〇〇」の形式をここで判定）
     if (displayText === "鎖" || displayText === "つなげる" || displayText.startsWith("つなげる:")) {
         const textToChain = displayText.includes(":") ? displayText.split(":")[1] : "鎖鎖鎖鎖";
         addChain(textToChain);
@@ -652,58 +644,67 @@ function handleAdd() {
         return;
     }
 
-    // 4. 連結
+    // 4. 連結（「連結:〇〇」の形式をここで判定）
     if (displayText.startsWith("連結:")) {
         const textToConnect = displayText.split(":")[1];
         if (textToConnect) {
-            addConnectedObject(textToConnect, targetFont);
+            // 特殊コマンドの「連結」の時はデフォルトのフォント、または固定値にします
+            addConnectedObject(textToConnect, 'serif');
         }
         input.value = '';
         return;
     }
     
-            if (displayText === "バウンド") {
-                isBouncing = !isBouncing;
-                document.body.classList.toggle('grayscale-mode', isBouncing);
-                engine.gravity.y = isBouncing ? 0 : 1.0;
-                if (isBouncing) {
-                    Composite.allBodies(world).forEach(body => {
-                        if (!body.isStatic) {
-                            const angle = Math.random() * Math.PI * 2;
-                            Body.setVelocity(body, { x: Math.cos(angle) * BOUNCE_SPEED, y: Math.sin(angle) * BOUNCE_SPEED });
-                        }
-                    });
+    // 5. モード切り替え系
+    if (displayText === "バウンド") {
+        isBouncing = !isBouncing;
+        document.body.classList.toggle('grayscale-mode', isBouncing);
+        engine.gravity.y = isBouncing ? 0 : 1.0;
+        if (isBouncing) {
+            Composite.allBodies(world).forEach(body => {
+                if (!body.isStatic) {
+                    const angle = Math.random() * Math.PI * 2;
+                    Body.setVelocity(body, { x: Math.cos(angle) * BOUNCE_SPEED, y: Math.sin(angle) * BOUNCE_SPEED });
                 }
-                statusLabel.innerText = isBouncing ? "バウンドモード：有効 (等速反射)" : "通常モード";
-                input.value = '';
-                playPopSound(isBouncing ? 800 : 400);
-                return;
-            }
-            if (displayText === "全てあなたの所為です") { 
-                triggerAbyss(true); 
-                addAbyssWords("全てあなたの所為です");
-                input.value = ''; 
-                return; 
-            }
-            if (displayText === "深淵") {
-                triggerAbyss(false);
-                input.value = '';
-                return;
-            }
-            
-            
-            if (val) {
-                if (isAbyss) {
-                    addAbyssWords(val);
-                } else {
-                    displayText.split('').forEach((char, i) => {
-    // 第4引数のオプションに { font: targetFont } を追加
-    setTimeout(() => addWord(char, null, null, { font: targetFont }), i * 100);
-});
-                }
-                input.value = '';
-            }
+            });
         }
+        statusLabel.innerText = isBouncing ? "バウンドモード：有効 (等速反射)" : "通常モード";
+        input.value = '';
+        playPopSound(isBouncing ? 800 : 400);
+        return;
+    }
+    if (displayText === "全てあなたの所為です") { 
+        triggerAbyss(true); 
+        addAbyssWords("全てあなたの所為です");
+        input.value = ''; 
+        return; 
+    }
+    if (displayText === "深淵") {
+        triggerAbyss(false);
+        input.value = '';
+        return;
+    }
+
+    // --- 【ここがポイント】どの特殊コマンドにも当てはまらなかった場合のみ、フォント指定として分解する ---
+    if (val.includes(':')) {
+        const parts = val.split(':');
+        targetFont = parts[0];
+        displayText = parts[1];
+        if (!displayText) return;
+    }
+    
+    // 通常の文字追加処理
+    if (val) {
+        if (isAbyss) {
+            addAbyssWords(displayText);
+        } else {
+            displayText.split('').forEach((char, i) => {
+                setTimeout(() => addWord(char, null, null, { font: targetFont }), i * 100);
+            });
+        }
+        input.value = '';
+    }
+}
 
         addBtn.onclick = handleAdd;
         input.onkeypress = (e) => { if (e.key === 'Enter') handleAdd(); };
