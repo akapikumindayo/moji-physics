@@ -620,8 +620,8 @@ function handleAdd() {
     let displayText = val;
 
     // A. フォント指定の分離
-    if (val.includes('：')) {
-        const parts = val.split('：');
+    if (val.includes(':')) {
+        const parts = val.split(':');
         targetFont = parts[0];
         displayText = parts[1];
         if (!displayText) return;
