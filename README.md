@@ -6,6 +6,9 @@
 プレイはこちらから
 (https://akapikumindayo.github.io/moji-physics/)
 
+紹介動画を作っています。（日本語のみ）
+https://youtu.be/U_FU_5plhl8
+
 仕組み・クレジット:
 ・ブラウザ上で完結する安全な設計です。
 ・Geminiと協力して開発しました。
