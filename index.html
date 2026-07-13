@@ -467,8 +467,12 @@
                         const distance = Vector.magnitude(vec);
 
                         if (distance < 300 && distance > 25) {
-                            const forceMagnitude = (bodyB.mass * bodyA.mass) / (distance * distance) * 3; 
-                            const force = Vector.mult(Vector.normalise(vec), forceMagnitude);
+                            // 固定されているオブジェクトの質量は Infinity になるため、計算用に 1 として扱う
+const massB = bodyB.isStatic ? 1 : bodyB.mass;
+const massA = bodyA.isStatic ? 1 : bodyA.mass;
+
+const forceMagnitude = (massB * massA) / (distance * distance) * 3; 
+const force = Vector.mult(Vector.normalise(vec), forceMagnitude);
                             const isSamePole = bodyB.customText.magnet === bodyA.customText.magnet;
                             
                             if (!bodyB.isStatic) {
