@@ -39,6 +39,7 @@ https://youtu.be/oCrcGK_MoVY
 -b-風.
 -s-青磁石.
 -n-赤磁石.
+-v-可変跳躍(勢いよくトランポリンにぶつけるとその分跳ねる)オン、オフ.
 
 バーチャルキーボードがあります:
 -右下のボタンでバーチャルキーボードを展開できます.
@@ -76,6 +77,7 @@ Controls:
 - B: Wind
 - S: Blue magnet
 - N: Red magnet
+- v: Variable jump (the more forcefully you hit the trampoline, the higher you bounce), on/off
 
 A virtual keyboard is available:
 - You can open the virtual keyboard using the button at the bottom right.
