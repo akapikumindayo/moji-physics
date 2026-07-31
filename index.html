@@ -897,8 +897,9 @@
                 return;
             }
 
+            // ▼【修正】クリックした位置に何もオブジェクトがない場合（bodiesAtPoint.length === 0）のみ文字を生成
             setTimeout(() => {
-                if (!mouseConstraint.body && !isAbyss && e.button === 0) {
+                if (bodiesAtPoint.length === 0 && !mouseConstraint.body && !isAbyss && e.button === 0) {
                     const char = randomChars[Math.floor(Math.random() * randomChars.length)];
                     addWord(char, mousePos.x, mousePos.y);
                 }
