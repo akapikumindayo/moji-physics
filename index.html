@@ -117,6 +117,9 @@
             <button id="vk-delete" class="bg-stone-600 hover:bg-stone-700 text-white font-bold py-2 px-3 rounded text-sm shadow active:scale-95 transition-transform">消去 (削除)</button>
             <button id="vk-s" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded text-sm shadow active:scale-95 transition-transform">S極 (s)</button>
             <button id="vk-n" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded text-sm shadow active:scale-95 transition-transform">N極 (n)</button>
+            
+            <button id="vk-variable-bounce" class="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded text-sm shadow active:scale-95 transition-transform">可変跳躍: OFF (v)</button>
+
             <button id="vk-wind" class="col-span-2 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded text-sm shadow active:scale-95 transition-transform select-none touch-none" style="touch-action: none;">風 (b) ※長押し</button>
         </div>
     </div>
@@ -135,6 +138,7 @@
         let isBlowing = false;
         let isBouncing = false;
         let lastGrabbedBody = null; 
+        let isVariableBounce = false;
 
         const BOUNCE_SPEED = 5; 
         const ABYSS_FALL_SPEED = 1.2;
@@ -155,6 +159,22 @@
                 osc.stop(audioCtx.currentTime + 0.1);
             } catch(e) {}
         }
+
+        // 【追加】可変バウンド切り替え関数
+        function toggleVariableBounce() {
+            isVariableBounce = !isVariableBounce;
+            const btn = document.getElementById('vk-variable-bounce');
+            if (btn) {
+                btn.innerText = `可変跳躍: ${isVariableBounce ? 'ON' : 'OFF'} (v)`;
+                btn.className = isVariableBounce 
+                    ? "col-span-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-3 rounded text-sm shadow active:scale-95 transition-transform ring-2 ring-emerald-300"
+                    : "col-span-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 px-3 rounded text-sm shadow active:scale-95 transition-transform";
+            }
+            playPopSound(isVariableBounce ? 1000 : 500, 'sine', 0.08);
+        }
+
+        // 【追加】バーチャルキーボードのボタンイベントリスナー
+        document.getElementById('vk-variable-bounce').addEventListener('click', toggleVariableBounce);
 
         const engine = Engine.create();
         const world = engine.world;
@@ -261,6 +281,12 @@
                 if (targetBody) toggleStatic(targetBody);
             }
             if (key === 'b') isBlowing = true;
+
+            // ▼ 【追加】「v」キーで可変バウンドのON/OFF切り替え
+            if (key === 'v') {
+                toggleVariableBounce();
+            }
+
             if (key === 's' || key === 'n') {
                 const grabbedBody = mouseConstraint.body;
                 if (grabbedBody && grabbedBody.customText) {
@@ -516,13 +542,22 @@
                     const other = bodyA.label === 'special_trampoline' ? bodyB : bodyA;
 
                     if (!other.isStatic) {
-                        if (other.position.y < tramp.position.y) {
-                            Body.setVelocity(other, {
-                                x: other.velocity.x,
-                                y: -18 
-                            });
-                            playPopSound(1200, 'sine', 0.05);
+                        // トランポリンの回転角から上面の法線ベクトル (垂直方向) を算出
+                        const normalX = Math.sin(tramp.angle);
+                        const normalY = -Math.cos(tramp.angle);
+
+                        // ゲーム内のフラグ (isVariableBounce) に応じて跳躍力を切り替え
+                        let bounceForce = 18; // 基本値
+                        if (isVariableBounce) {
+                            const currentSpeed = Vector.magnitude(other.velocity);
+                            bounceForce = Math.max(18, currentSpeed * 1.2); // 進入速度に応じた可変バウンド
                         }
+
+                        Body.setVelocity(other, {
+                            x: normalX * bounceForce,
+                            y: normalY * bounceForce
+                        });
+                        playPopSound(isVariableBounce ? 1500 : 1200, 'sine', 0.05);
                     }
                 }
                 const isIceFloor = bodyA.label === 'ice_floor' || bodyB.label === 'ice_floor';
