@@ -329,17 +329,19 @@ let isTKeyPressed = false;
         });
 
         window.addEventListener('keyup', (e) => {
-            if (!e || !e.key) return; 
-            if (e.key.toLowerCase() === 'y') {
+    if (!e || !e.key) return; 
+    const key = e.key.toLowerCase(); // ← key変数をここで定義する
+
+    if (key === 'y') {
         isYKeyPressed = false;
         linkSourceBody = null; // キーを離したら選択リセット
     }
-    if (key === 't') { // ★追加
+    if (key === 't') { // ← 修正：定義した key 変数を使用
         isTKeyPressed = false;
         boardSourceBody = null;
     }
-            if (e.key.toLowerCase() === 'b') isBlowing = false;
-        });
+    if (key === 'b') isBlowing = false;
+});
 
         function toggleStatic(targetBody) {
             // 壁などの完全な静的オブジェクト（文字以外）は無視
@@ -535,9 +537,9 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
             else if (types.includes('trampoline') || charsArray.includes('跳')) combinedType = 'trampoline';
             else if (types.includes('ice') || charsArray.includes('氷')) combinedType = 'ice';
             else if (types.includes('multiply') || charsArray.includes('倍')) combinedType = 'multiply';
-            else if (types.includes('blackhole') || charsArray.includes('吸')) {
+            else if (types.includes('blackhole') || charsArray.includes('穴')) {
                 isBlackHole = true;
-                combinedType = 'blackhole';
+                combinedType = 'blackhole';}
              else if (types.includes('glavity') || charsArray.includes('塊')) {
             }
 
@@ -1588,8 +1590,8 @@ function removeBodySafely(body) {
 
 // バーチャルキーボード：Tボタン（板で連結）
 document.getElementById('vk-board')?.addEventListener('click', () => {
-    isTKeyPressed = !isTKeyPressed; // タップでON/OFF切り替え
-    isYKeyPressed = false;          // 紐モードは解除
+    isTKeyPressed = !isTKeyPressed; 
+    isYKeyPressed = false;          
 
     if (isTKeyPressed) {
         statusLabel.innerText = "【板連結モード】繋ぎたい2つの文字を順番にタップしてください";
@@ -1601,15 +1603,16 @@ document.getElementById('vk-board')?.addEventListener('click', () => {
     }
 });
 
-document.getElementById('vk-board')?.addEventListener('click', () => {
-    isYKeyPressed = !isYKeyPressed; // タップでON/OFF切り替え
-    isTKeyPressed = false;          // 紐モードは解除
+// バーチャルキーボード：Yボタン（紐で連結） ※ここを vk-rope に修正
+document.getElementById('vk-rope')?.addEventListener('click', () => {
+    isYKeyPressed = !isYKeyPressed; 
+    isTKeyPressed = false;          
 
     if (isYKeyPressed) {
         statusLabel.innerText = "【紐連結モード】繋ぎたい2つの文字を順番にタップしてください";
         playPopSound(600, 'square', 0.05);
     } else {
-        boardSourceBody = null;
+        linkSourceBody = null; // 変数名も正しく修正
         statusLabel.innerText = "通常モード";
         playPopSound(300, 'square', 0.05);
     }
