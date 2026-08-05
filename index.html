@@ -535,9 +535,10 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
             else if (types.includes('trampoline') || charsArray.includes('跳')) combinedType = 'trampoline';
             else if (types.includes('ice') || charsArray.includes('氷')) combinedType = 'ice';
             else if (types.includes('multiply') || charsArray.includes('倍')) combinedType = 'multiply';
-            else if (types.includes('blackhole') || charsArray.includes('塊') || charsArray.includes('吸')) {
+            else if (types.includes('blackhole') || charsArray.includes('吸')) {
                 isBlackHole = true;
                 combinedType = 'blackhole';
+             else if (types.includes('glavity') || charsArray.includes('塊')) {
             }
 
             let resultData = {
