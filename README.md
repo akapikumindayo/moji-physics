@@ -20,15 +20,20 @@ https://youtu.be/oCrcGK_MoVY
 文字の種類(alphabet,ひらがな,カタカナ,漢字,数字)によって性質が少しずつ違います.
 -「深淵」と入力すると上から一定速度で文字が並んで降りてくる無重力モードになります.
 -「バウンド」と入力すると等速反射する無重力モードになります.
+-「無重力」と入力するとただの無重力モードになります.
 -「氷」は滑りやすいです.
 -「塊」はブラックホールのように物を引き付けます.
 -「重」は超高質量です.
 -「軽」は超低質量です.
+-「浮」はクリックすると浮いていきます.
+-「爆」は下から出てきて爆発します.
+-「倍」は一定時間ごとに倍になっていきます(最大30個).
 -「トランポリン」は上に乗ったものを跳ねさせます.
 -「氷床」は滑る板です。(これの上に乗ったものは永遠と滑りやすい性質になります。)
 -「鎖」は「鎖」が四つ連なります.
 -「つなげる:」の後ろに打った文章は「鎖」のようにつながります.
 -「連結:」の後ろに打った文章は固まった一つのオブジェクトとなります.
+-「合体:」の後ろに打った文字は4文字ごとに合体します.
 -フォント名のあとに「:」をつけてその後ろに打った文章は指定したフォントになります.
 
 操作:
@@ -39,6 +44,9 @@ https://youtu.be/oCrcGK_MoVY
 -b-風.
 -s-青磁石.
 -n-赤磁石.
+-y-紐でつなげる.
+-t-板でつなげる.
+-q-yとtの選択解除.
 -v-可変跳躍(勢いよくトランポリンにぶつけるとその分跳ねる)オン、オフ.
 
 バーチャルキーボードがあります:
@@ -62,11 +70,15 @@ Elements:
 - '塊' attracts things like a black hole.
 - '重' has extremely high mass.
 - '軽' has extremely low mass.
+- Clicking '浮' will make it float.
+- '爆' will appear from the bottom and explode.
+- '倍' will double at regular intervals (up to 30).
 - 'トランポリン' makes things bounce when placed on top.
 - '氷床' is a sliding surface. (Things on top will slide endlessly.)
 - '鎖' links four 'chains' together.
 - 'Moji' typed after 'つなげる:' will connect like 'chains'.
 - 'Moji' typed after '連結:' becomes a single, solid object.
+- Any 'moji' typed after '合体:' will be combined in groups of four.
 - If you put a font name followed by ':' and then type 'moji', it will be in the specified font
 
 Controls:
@@ -77,9 +89,13 @@ Controls:
 - B: Wind
 - S: Blue magnet
 - N: Red magnet
+- y: Connect with a rope
+- t: Connect with a board
+- q: Deselect y and t
 - v: Variable jump (the more forcefully you hit the trampoline, the higher you bounce), on/off
 
 A virtual keyboard is available:
 - You can open the virtual keyboard using the button at the bottom right.
 - While the virtual keyboard is open, the currently selected item is highlighted in orange.
 - You can deselect the item by tapping (or clicking) in empty space.
+- A rotation button has been implemented.
