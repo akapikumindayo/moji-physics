@@ -528,25 +528,32 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
             
             let count = charsArray.length || 1;
 
-            // ★ 特殊文字のタイプや文字自体が含まれているかを判定して引き継ぐ
+            // ★ すべての特殊特性（倍、爆、浮、跳、氷、ブラックホール）を正しく引き継ぐ
             let combinedType = 'other';
             if (types.includes('bomb') || charsArray.includes('爆')) combinedType = 'bomb';
             else if (types.includes('float') || charsArray.includes('浮')) combinedType = 'float';
             else if (types.includes('trampoline') || charsArray.includes('跳')) combinedType = 'trampoline';
             else if (types.includes('ice') || charsArray.includes('氷')) combinedType = 'ice';
-            else if (types.includes('heavy_block') || charsArray.includes('塊')) combinedType = 'heavy_block';
-            else if (types.includes('blackhole') || charsArray.includes('吸')) {
+            else if (types.includes('multiply') || charsArray.includes('倍')) combinedType = 'multiply';
+            else if (types.includes('blackhole') || charsArray.includes('塊') || charsArray.includes('吸')) {
                 isBlackHole = true;
                 combinedType = 'blackhole';
             }
 
-            return {
+            let resultData = {
                 density: totalDensity / count,          
                 restitution: totalRestitution / count,  
                 friction: totalFriction / count,        
                 isBlackHole: isBlackHole,               
                 type: combinedType                      
             };
+
+            // ★ 「倍」が含まれている場合は増殖タイマーを持たせる
+            if (combinedType === 'multiply') {
+                resultData.lastMultiplyTime = Date.now();
+            }
+
+            return resultData;
         }
 
         // 【機能追加】合体文字（1つの物理ブロック）を生成する関数
@@ -558,7 +565,7 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
             const fontSize = options.fontSize || Math.floor(Math.random() * 10) + 50; 
             const charData = getCombinedCharacterData(chars, fontSize);
 
-            // ★ 「爆」または「浮」が含まれている場合は画面下から湧かせる
+            // ★ 「爆」や「浮」が含まれる場合は画面下から湧かせる
             const isFromBottom = (charData.type === 'bomb' || charData.type === 'float' || chars.includes('爆') || chars.includes('浮'));
             
             const x = xPos !== undefined && xPos !== null ? xPos : Math.random() * (width - 100) + 50;
@@ -587,10 +594,11 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
                 color: color,
                 opacity: 1.0,
                 charData: charData,
-                font: options.font || 'serif' 
+                font: options.font || 'serif',
+                spawnTime: Date.now() // ★ 爆発の即死防止用
             };
 
-            // ★ 「爆」や「浮」に応じた下からの射出・浮上速度を設定
+            // ★ 「爆」や「浮」に応じた初速を設定
             if (options.velocity) {
                 Body.setVelocity(wordBody, options.velocity);
             } else if (charData.type === 'bomb' || chars.includes('爆')) {
