@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文字物理シミュレーター</title>
+    <title>文字物理シミュレーター - 完全統合版 v.7</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -89,7 +89,6 @@
         #backBtn {
             display: none;
         }
-        /* ★ zero-gravity-mode のときも backBtn を表示する */
         .abyss-mode #backBtn, .grayscale-mode #backBtn, .zero-gravity-mode #backBtn {
             display: block;
         }
@@ -98,13 +97,13 @@
 <body class="normal-mode">
 
     <div class="controls">
-        <input type="text" id="wordInput" autocomplete="off" placeholder="文字を入力..." class="px-4 py-2 rounded border border-red-200 bg-white/80 text-black focus:outline-none focus:ring-2 focus:ring-red-400 w-40">
+        <input type="text" id="wordInput" autocomplete="off" placeholder="文字を入力 (例: 合体:塊氷)..." class="px-4 py-2 rounded border border-red-200 bg-white/80 text-black focus:outline-none focus:ring-2 focus:ring-red-400 w-48">
         <button id="addBtn" class="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded font-bold shadow-md transition-all active:scale-95">追加</button>
         <button id="clearBtn" class="bg-stone-600 hover:bg-stone-700 text-white px-4 py-2 rounded font-bold shadow-md transition-all active:scale-95">消去</button>
         <button id="backBtn" class="bg-blue-900 hover:bg-blue-800 text-white px-4 py-2 rounded font-bold shadow-md transition-all active:scale-95">戻す</button>
     </div>
 
-    <!-- バーチャルキーボード関連要素（PC向けレイアウトに戻す） -->
+    <!-- バーチャルキーボード -->
     <button id="vkToggleBtn" class="fixed bottom-4 right-4 bg-gray-800 text-white w-12 h-12 flex items-center justify-center rounded-full shadow-lg z-50 transition-transform active:scale-95 text-2xl pointer-events-auto">
         ⌨️
     </button>
@@ -122,33 +121,31 @@
                 <span>板</span>
                 <span class="text-[10px] opacity-75">(T)</span>
             </button>
-
             <button id="vk-rope" class="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-400 font-bold py-2 px-1 rounded text-xs flex flex-col items-center justify-center shadow-sm active:scale-95 transition-transform">
                 <span>紐</span>
                 <span class="text-[10px] opacity-75">(Y)</span>
             </button>
-
             <button id="vk-cancel" class="bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-400 font-bold py-2 px-1 rounded text-xs flex flex-col items-center justify-center shadow-sm active:scale-95 transition-transform">
                 <span>解除</span>
                 <span class="text-[10px] opacity-75">(Q)</span>
             </button>
             <div class="col-span-2 flex flex-col gap-1 bg-stone-100 p-2 rounded text-black text-xs font-bold">
-    <label for="multiplySpeed">倍の増殖間隔: <span id="speedValue">5</span>秒</label>
-    <input type="range" id="multiplySpeed" min="1" max="10" value="5" class="w-full cursor-pointer">
-</div>      
+                <label for="multiplySpeed">倍の増殖間隔: <span id="speedValue">5</span>秒</label>
+                <input type="range" id="multiplySpeed" min="1" max="10" value="5" class="w-full cursor-pointer">
+            </div>      
             <button id="vk-variable-bounce" class="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded text-sm shadow active:scale-95 transition-transform">可変跳躍: OFF (v)</button>
+            <button id="vk-precise-hit" class="col-span-2 bg-purple-700 hover:bg-purple-800 text-white font-bold py-2 px-3 rounded text-sm shadow active:scale-95 transition-transform">精密判定: OFF (p)</button>
             <button id="vk-wind" class="col-span-2 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded text-sm shadow active:scale-95 transition-transform select-none touch-none" style="touch-action: none;">風 (b) ※長押し</button>
         </div>
     </div>
 
     <div id="statusLabel" class="instruction">
-    掴んでホイール回転 / 「k」固定 / 「b」風 / 「y」ゴム紐で連結/ 「t」板で連結/ 「q」選択解除
-</div>
+        掴んでホイール回転 / 「k」固定 / 「b」風 / 「y」紐 / 「t」板 / 「p」精密判定
+    </div>
 
     <script>
-        // ブラウザの右クリックメニューを禁止する
         window.addEventListener('contextmenu', (e) => e.preventDefault());
-        const { Engine, Render, Runner, Bodies, Composite, MouseConstraint, Mouse, Events, World, Body, Vector } = Matter;
+        const { Engine, Render, Runner, Bodies, Composite, MouseConstraint, Mouse, Events, World, Body, Vector, Constraint } = Matter;
 
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let isAbyss = false;
@@ -156,10 +153,12 @@
         let isBouncing = false;
         let lastGrabbedBody = null; 
         let isVariableBounce = false;
-        let linkSourceBody = null; // Yキー連結用の1つ目の文字
-let isYKeyPressed = false; // Yキー押下状態
-let boardSourceBody = null; // Tキー（板）選択用
-let isTKeyPressed = false;
+        let isPreciseHitMode = false; 
+        let linkSourceBody = null; 
+        let isYKeyPressed = false; 
+        let boardSourceBody = null; 
+        let activeMode = 'normal';
+        let isTKeyPressed = false;
 
         const BOUNCE_SPEED = 5; 
         const ABYSS_FALL_SPEED = 1.2;
@@ -181,7 +180,6 @@ let isTKeyPressed = false;
             } catch(e) {}
         }
 
-        // 【追加】可変バウンド切り替え関数
         function toggleVariableBounce() {
             isVariableBounce = !isVariableBounce;
             const btn = document.getElementById('vk-variable-bounce');
@@ -194,10 +192,94 @@ let isTKeyPressed = false;
             playPopSound(isVariableBounce ? 1000 : 500, 'sine', 0.08);
         }
 
-        // 【追加】バーチャルキーボードのボタンイベントリスナー
-        document.getElementById('vk-variable-bounce').addEventListener('click', toggleVariableBounce);
+        // 精密判定モード切替時に既存の文字ボディを再スキャンして再生成する（バグ修正済み）
+        function scanAndRebuildBodies() {
+            const bodies = Composite.allBodies(world);
+            bodies.forEach(body => {
+                if (!body.customText) return;
+                if (body.label === 'ice_floor' || body.label === 'special_trampoline') return;
+                
+                const text = body.customText.content;
+                if (text.length === 1 && !body.customText.isCombined) {
+                    const pos = { ...body.position };
+                    const vel = { ...body.velocity };
+                    const angle = body.angle;
+                    const angularVelocity = body.angularVelocity;
+                    const isStatic = body.isStatic;
+                    const isStaticToggle = body.isStaticToggle;
+                    const customText = body.customText;
+                    const dragContext = body.dragContext;
 
-        const engine = Engine.create();
+                    const fontSize = customText.size;
+                    const charData = customText.charData;
+                    
+                    let newBody;
+                    if (isPreciseHitMode) {
+                        newBody = createPreciseCharacterBody(text, pos.x, pos.y, fontSize, charData, { font: customText.font });
+                    } else {
+                        const isHalfWidth = text.match(/[a-zA-Z0-9\s!-/:-@[-`{-~]/); 
+                        const hitWidth = isHalfWidth ? (fontSize * 0.4) : (fontSize * 0.8);
+                        const h = fontSize * 0.85;
+                        newBody = Bodies.rectangle(pos.x, pos.y, hitWidth, h, { 
+                            density: charData.density,
+                            restitution: isAbyss ? 0 : (isBouncing ? 1 : charData.restitution),
+                            friction: isBouncing ? 0 : charData.friction,
+                            frictionAir: (isAbyss || isBouncing) ? 0 : 0.01,
+                            render: { visible: false }
+                        });
+                    }
+
+                    Body.setAngle(newBody, angle);
+                    Body.setVelocity(newBody, vel);
+                    Body.setAngularVelocity(newBody, angularVelocity);
+                    Body.setStatic(newBody, isStatic);
+                    newBody.isStaticToggle = isStaticToggle;
+                    newBody.customText = customText;
+                    newBody.dragContext = dragContext;
+
+                    // 制約の参照先を新しいボディに置き換え
+                    const allConstraints = Composite.allConstraints(world);
+                    allConstraints.forEach(constraint => {
+                        if (constraint.bodyA === body) constraint.bodyA = newBody;
+                        if (constraint.bodyB === body) constraint.bodyB = newBody;
+                    });
+
+                    // MouseConstraint の参照不一致（掴めなくなる原因）を完全に修正
+                    if (mouseConstraint.body === body) {
+                        mouseConstraint.body = newBody;
+                    }
+                    if (mouseConstraint.constraint && mouseConstraint.constraint.bodyB === body) {
+                        mouseConstraint.constraint.bodyB = newBody;
+                    }
+
+                    if (lastGrabbedBody === body) lastGrabbedBody = newBody;
+                    if (linkSourceBody === body) linkSourceBody = newBody;
+                    if (boardSourceBody === body) boardSourceBody = newBody;
+
+                    Composite.remove(world, body);
+                    Composite.add(world, newBody);
+                }
+            });
+        }
+
+        function togglePreciseHitMode() {
+            isPreciseHitMode = !isPreciseHitMode;
+            const btn = document.getElementById('vk-precise-hit');
+            if (btn) {
+                btn.innerText = `精密判定: ${isPreciseHitMode ? 'ON' : 'OFF'} (p)`;
+                btn.className = isPreciseHitMode 
+                    ? "col-span-2 bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-3 rounded text-sm shadow active:scale-95 transition-transform ring-2 ring-purple-300"
+                    : "col-span-2 bg-purple-700 hover:bg-purple-800 text-white font-bold py-2 px-3 rounded text-sm shadow active:scale-95 transition-transform";
+            }
+            statusLabel.innerText = isPreciseHitMode ? "精密判定モード：ON" : "精密判定モード：OFF";
+            playPopSound(isPreciseHitMode ? 900 : 450, 'sine', 0.08);
+            scanAndRebuildBodies();
+        }
+
+        document.getElementById('vk-variable-bounce').addEventListener('click', toggleVariableBounce);
+        document.getElementById('vk-precise-hit').addEventListener('click', togglePreciseHitMode);
+
+        const engine = Engine.create({ enableSleeping: true });
         const world = engine.world;
         engine.gravity.y = 1.0; 
 
@@ -256,7 +338,6 @@ let isTKeyPressed = false;
 
         window.addEventListener('wheel', (e) => {
             const grabbedBody = mouseConstraint.body;
-            // 固定解除中（ドラッグ中）も含めてホイール回転を許可
             if (grabbedBody && (!grabbedBody.isStatic || grabbedBody.isStaticToggle)) {
                 const rotationDelta = e.deltaY > 0 ? 0.2 : -0.2;
                 Body.rotate(grabbedBody, rotationDelta);
@@ -272,8 +353,6 @@ let isTKeyPressed = false;
             const body = event.body;
             body.dragContext = { fixedAngle: body.angle };
             lastGrabbedBody = body; 
-            
-            // 【変更】固定中のオブジェクトをドラッグする場合、一時的に固定を解除する
             if (body.isStaticToggle) {
                 Body.setStatic(body, false);
             }
@@ -283,8 +362,6 @@ let isTKeyPressed = false;
             const body = event.body;
             if (body) {
                 body.dragContext = null;
-                
-                // 【変更】元々固定設定だったものは、ドラッグを終えた瞬間に空中で再度固定する
                 if (body.isStaticToggle) {
                     Body.setStatic(body, true);
                     Body.setVelocity(body, { x: 0, y: 0 });
@@ -293,30 +370,52 @@ let isTKeyPressed = false;
             }
         });
 
+        function setInteractionMode(mode) {
+            activeMode = mode;
+            linkSourceBody = null;
+            boardSourceBody = null;
+
+            const ropeBtn = document.getElementById('vk-rope');
+            const boardBtn = document.getElementById('vk-board');
+
+            if (mode === 'rope') {
+                statusLabel.innerText = "【紐連結モード】繋ぎたい1つ目の文字をタップ";
+                playPopSound(600, 'square', 0.05);
+                if (ropeBtn) ropeBtn.classList.add('ring-2', 'ring-pink-500');
+                if (boardBtn) boardBtn.classList.remove('ring-2', 'ring-amber-500');
+            } else if (mode === 'board') {
+                statusLabel.innerText = "【板連結モード】繋ぎたい1つ目の文字をタップ";
+                playPopSound(600, 'square', 0.05);
+                if (boardBtn) boardBtn.classList.add('ring-2', 'ring-amber-500');
+                if (ropeBtn) ropeBtn.classList.remove('ring-2', 'ring-pink-500');
+            } else {
+                statusLabel.innerText = "通常モード：掴んでホイール回転 / 「k」固定";
+                if (ropeBtn) ropeBtn.classList.remove('ring-2', 'ring-pink-500');
+                if (boardBtn) boardBtn.classList.remove('ring-2', 'ring-amber-500');
+            }
+        }
+
         window.addEventListener('keydown', (e) => {
             if (!e || !e.key) return;
-
             const key = e.key.toLowerCase();
-            if (key === 'y') isYKeyPressed = true;
-            if (key === 't') isTKeyPressed = true;
-            if (key === 'q') {
-                if (linkSourceBody || boardSourceBody) {
-                    linkSourceBody = null;
-                    boardSourceBody = null;
-                    playPopSound(200, 'square', 0.05); // キャンセル音
-                    if (statusLabel) statusLabel.innerText = "連結の選択をキャンセルしました";
-                }
+            
+            if (key === 'y') {
+                setInteractionMode(activeMode === 'rope' ? 'normal' : 'rope');
+            }
+            if (key === 't') {
+                setInteractionMode(activeMode === 'board' ? 'normal' : 'board');
+            }
+            if (key === 'q' || key === 'escape') {
+                setInteractionMode('normal');
+                playPopSound(200, 'square', 0.05);
             }
             if (key === 'k') {
                 const targetBody = mouseConstraint.body || Matter.Query.point(Composite.allBodies(world), mouse.position)[0];
                 if (targetBody) toggleStatic(targetBody);
             }
             if (key === 'b') isBlowing = true;
-
-            // ▼ 【追加】「v」キーで可変バウンドのON/OFF切り替え
-            if (key === 'v') {
-                toggleVariableBounce();
-            }
+            if (key === 'v') toggleVariableBounce();
+            if (key === 'p') togglePreciseHitMode();
 
             if (key === 's' || key === 'n') {
                 const grabbedBody = mouseConstraint.body;
@@ -329,47 +428,30 @@ let isTKeyPressed = false;
         });
 
         window.addEventListener('keyup', (e) => {
-    if (!e || !e.key) return; 
-    const key = e.key.toLowerCase(); // ← key変数をここで定義する
-
-    if (key === 'y') {
-        isYKeyPressed = false;
-        linkSourceBody = null; // キーを離したら選択リセット
-    }
-    if (key === 't') { // ← 修正：定義した key 変数を使用
-        isTKeyPressed = false;
-        boardSourceBody = null;
-    }
-    if (key === 'b') isBlowing = false;
-});
+            if (!e || !e.key) return; 
+            const key = e.key.toLowerCase();
+            if (key === 'y') { isYKeyPressed = false; linkSourceBody = null; }
+            if (key === 't') { isTKeyPressed = false; boardSourceBody = null; }
+            if (key === 'b') isBlowing = false;
+        });
 
         function toggleStatic(targetBody) {
-            // 壁などの完全な静的オブジェクト（文字以外）は無視
             if (targetBody.isStatic && !targetBody.isStaticToggle) return;
-
             if (!targetBody.isStaticToggle) {
                 targetBody.isStaticToggle = true;
                 if (targetBody.customText) targetBody.customText.opacity = 0.6;
-                
-                // ドラッグ中でなければ即座に物理的に固定
-                if (mouseConstraint.body !== targetBody) {
-                    Body.setStatic(targetBody, true);
-                }
+                if (mouseConstraint.body !== targetBody) Body.setStatic(targetBody, true);
                 playPopSound(300, 'square', 0.05);
-            } else if (targetBody.isStaticToggle) {
+            } else {
                 targetBody.isStaticToggle = false;
                 if (targetBody.customText) targetBody.customText.opacity = 1.0;
-                
-                // ドラッグ中でなければ即座に物理的固定を解除
-                if (mouseConstraint.body !== targetBody) {
-                    Body.setStatic(targetBody, false);
-                }
+                if (mouseConstraint.body !== targetBody) Body.setStatic(targetBody, false);
                 playPopSound(500, 'sine', 0.05);
             }
         }
 
         function getCharacterData(char, fontSize) {
-    let data = { density: 0.001, restitution: 0.4, friction: 0.2, widthFactor: 1.0, type: 'other', magnet: null };
+            let data = { density: 0.001, restitution: 0.4, friction: 0.2, widthFactor: 1.0, type: 'other', magnet: null };
             
             if (char.match(/[a-zA-Z0-9]/) || char.match(/[ａ-ｚＡ-Ｚ０-９]/)) {
                 data.widthFactor = 0.5;
@@ -378,102 +460,105 @@ let isTKeyPressed = false;
                 data.friction = 0.05; 
                 data.type = 'alphabet';
             }
-
-            if (char === "跳") {
-        data.restitution = 1.0; 
-        data.type = 'trampoline';
-        return data;
-    }
-    if (char === "浮") {
-        data.density = 0.0005;
-        data.type = 'float';
-        return data;
-    }
-    if (char === "爆") {
-        data.type = 'bomb';
-        return data;
-    }
-    if (char === "倍") {
-        data.type = 'multiply';
-        data.lastMultiplyTime = Date.now(); // 生成時刻を記録
-        return data;
-    }
-
-            if (char === "氷") {
-                data.friction = 0;      
-                data.restitution = 0.1; 
-                data.type = 'ice';
-                return data;
-            }
-            if (char === "塊") {
-    data.density = 0.05;    
-    data.type = 'gravity'; // 塊は単なる重いブロック（※消去フラグは持たせない）
-    return data;
-}
-if (char === "穴" || char === "ブラックホール") { // またはお好みのブラックホール文字
-    data.density = 0.01;
-    data.isBlackHole = true;   // ここだけ「ブラックホール」のフラグを立てる
-    data.type = 'blackhole';
-    return data;
-}
-            if (char === "重"){
-                data.density = 1;
-                data.friction = 1;
-                data.restitution = 0;
-                return data;
-            }
-            if (char === "軽"){
-                data.density =0.001;
-                data.friction =0;
-                data.restitution =1;
-                return data;
-            }
-            if (char === "跳") {
-                data.restitution = 1.0; 
-                data.type = 'trampoline';
-                return data;
-            }
-            else if (char.match(/[。、！？!?.,]/)) {
-                data.density = 0.0008;
-                data.restitution = 0.8;
-                data.friction = 0.1;
-                data.widthFactor = 0.6;
-            }
-            else if (char.match(/[\u4e00-\u9faf]/)) {
-                data.density = 0.005; 
-                data.friction = 0.5;
-                data.restitution = 0.2;
-                data.widthFactor = 1.0;
-            }
+            if (char === "跳") { data.restitution = 1.0; data.type = 'trampoline'; return data; }
+            if (char === "浮") { data.density = 0.0005; data.type = 'float'; return data; }
+            if (char === "爆") { data.type = 'bomb'; return data; }
+            if (char === "倍") { data.type = 'multiply'; data.lastMultiplyTime = Date.now(); return data; }
+            if (char === "氷") { data.friction = 0; data.restitution = 0.1; data.type = 'ice'; return data; }
+            if (char === "塊") { data.density = 0.05; data.type = 'gravity'; return data; }
+            if (char === "穴" || char === "ブラックホール") { data.density = 0.01; data.isBlackHole = true; data.type = 'blackhole'; return data; }
+            if (char === "重") { data.density = 1; data.friction = 1; data.restitution = 0; return data; }
+            if (char === "軽") { data.density = 0.001; data.friction = 0; data.restitution = 1; return data; }
+            if (char.match(/[。、！？!?.,]/)) { data.density = 0.0008; data.restitution = 0.8; data.friction = 0.1; data.widthFactor = 0.6; }
+            else if (char.match(/[\u4e00-\u9faf]/)) { data.density = 0.005; data.friction = 0.5; data.restitution = 0.2; data.widthFactor = 1.0; }
             return data;
+        }
+
+        function createPreciseCharacterBody(text, x, y, fontSize, charData, options = {}) {
+            const size = 90;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            ctx.font = `bold ${size * 0.7}px ${options.font || 'serif'}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#000';
+            ctx.fillText(text, size / 2, size / 2);
+
+            const imgData = ctx.getImageData(0, 0, size, size);
+            const pixels = imgData.data;
+            const blockSize = 5;
+            const parts = [];
+            const scale = fontSize / size;
+
+            for (let py = 0; py < size; py += blockSize) {
+                for (let px = 0; px < size; px += blockSize) {
+                    let hasPixel = false;
+                    for (let dy = 0; dy < blockSize && (py + dy) < size; dy++) {
+                        for (let dx = 0; dx < blockSize && (px + dx) < size; dx++) {
+                            const idx = ((py + dy) * size + (px + dx)) * 4;
+                            if (pixels[idx + 3] > 128) { hasPixel = true; break; }
+                        }
+                        if (hasPixel) break;
+                    }
+                    if (hasPixel) {
+                        const relX = (px + blockSize / 2 - size / 2) * scale;
+                        const relY = (py + blockSize / 2 - size / 2) * scale;
+                        parts.push(Bodies.rectangle(relX, relY, blockSize * scale, blockSize * scale));
+                    }
+                }
+            }
+
+            if (parts.length === 0) {
+                return Bodies.rectangle(x, y, fontSize * 0.8, fontSize * 0.8, {
+                    density: charData.density,
+                    restitution: isAbyss ? 0 : (isBouncing ? 1 : charData.restitution),
+                    friction: isBouncing ? 0 : charData.friction
+                });
+            }
+
+            const compoundBody = Body.create({
+                parts: parts,
+                density: charData.density,
+                restitution: isAbyss ? 0 : (isBouncing ? 1 : charData.restitution),
+                friction: isBouncing ? 0 : charData.friction,
+                frictionAir: (isAbyss || isBouncing) ? 0 : 0.01,
+                render: { visible: false }
+            });
+            Body.setPosition(compoundBody, { x, y });
+            return compoundBody;
         }
 
         function addWord(text, xPos, yPos, options = {}) {
             if (!text) return;
-            
             const fontSize = options.fontSize || Math.floor(Math.random() * 10) + 45; 
             const charData = getCharacterData(text, fontSize);
 
-            // ★ 【変更】「爆」と「浮」は位置指定がなければ画面下から湧かせる
             const isFromBottom = (charData.type === 'bomb' || charData.type === 'float');
             const x = xPos !== undefined && xPos !== null ? xPos : Math.random() * (width - 100) + 50;
             const y = yPos !== undefined && yPos !== null ? yPos : (isFromBottom ? height + 30 : -50);
             
             const color = isAbyss ? "#ffffff" : "#1a1a1a";
-            const w = fontSize * charData.widthFactor;
-            const h = fontSize * 0.85;
+            let wordBody;
 
-            const isHalfWidth = text.match(/[a-zA-Z0-9\s!-/:-@[-`{-~]/); 
-            const hitWidth = isHalfWidth ? (fontSize * 0.4) : (fontSize * 0.8);
+            if (isPreciseHitMode && text.length === 1) {
+                wordBody = createPreciseCharacterBody(text, x, y, fontSize, charData, options);
+            } else {
+                const isHalfWidth = text.match(/[a-zA-Z0-9\s!-/:-@[-`{-~]/); 
+                const hitWidth = isHalfWidth ? (fontSize * 0.4) : (fontSize * 0.8);
+                const h = fontSize * 0.85;
 
-            const wordBody = Bodies.rectangle(x, y, hitWidth, h, { 
-                density: charData.density,
-                restitution: isAbyss ? 0 : (isBouncing ? 1 : charData.restitution),
-                friction: isBouncing ? 0 : charData.friction,
-                frictionAir: (isAbyss || isBouncing) ? 0 : 0.01,
-                isSensor: false, 
-                render: { visible: false }
-            });
+                wordBody = Bodies.rectangle(x, y, hitWidth, h, { 
+                    density: charData.density,
+                    restitution: isAbyss ? 0 : (isBouncing ? 1 : charData.restitution),
+                    friction: isBouncing ? 0 : charData.friction,
+                    frictionAir: (isAbyss || isBouncing) ? 0 : 0.01,
+                    isSensor: false, 
+                    render: { visible: false }
+                });
+            }
 
             if (!isAbyss) Body.setAngle(wordBody, (Math.random() - 0.5) * 0.3);
             else Body.setAngle(wordBody, 0);
@@ -484,18 +569,15 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
                 color: color,
                 opacity: 1.0,
                 charData: charData,
-                font: options.font || 'serif' ,
+                font: options.font || 'serif',
                 spawnTime: Date.now()
             };
 
-            // ★ 【変更】下から打ち上げる速度を設定
             if (options.velocity) {
                 Body.setVelocity(wordBody, options.velocity);
             } else if (charData.type === 'bomb') {
-                // 「爆」はロケットのように勢いよく上に射出
                 Body.setVelocity(wordBody, { x: (Math.random() - 0.5) * 6, y: -18 });
             } else if (charData.type === 'float') {
-                // 「浮」はフワッと上に向かって登っていく
                 Body.setVelocity(wordBody, { x: (Math.random() - 0.5) * 3, y: -8 });
             } else if (isAbyss) {
                 Body.setVelocity(wordBody, { x: 0, y: ABYSS_FALL_SPEED });
@@ -505,15 +587,12 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
             }
 
             Composite.add(world, wordBody);
-            
             if (!isAbyss) {
-                const freq = charData.type === 'alphabet' ? 800 : 600;
-                playPopSound(freq, 'sine', 0.05);
+                playPopSound(charData.type === 'alphabet' ? 800 : 600, 'sine', 0.05);
             }
             return wordBody;
         }
 
-        // 【機能追加】合体した文字の物理特性を計算して融合する関数
         function getCombinedCharacterData(charsArray, fontSize) {
             let totalDensity = 0, totalRestitution = 0, totalFriction = 0;
             let isBlackHole = false;
@@ -529,19 +608,13 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
             });
             
             let count = charsArray.length || 1;
-
-            // ★ すべての特殊特性（倍、爆、浮、跳、氷、ブラックホール）を正しく引き継ぐ
             let combinedType = 'other';
             if (types.includes('bomb') || charsArray.includes('爆')) combinedType = 'bomb';
             else if (types.includes('float') || charsArray.includes('浮')) combinedType = 'float';
             else if (types.includes('trampoline') || charsArray.includes('跳')) combinedType = 'trampoline';
             else if (types.includes('ice') || charsArray.includes('氷')) combinedType = 'ice';
             else if (types.includes('multiply') || charsArray.includes('倍')) combinedType = 'multiply';
-            else if (types.includes('blackhole') || charsArray.includes('穴')) {
-                isBlackHole = true;
-                combinedType = 'blackhole';}
-             else if (types.includes('glavity') || charsArray.includes('塊')) {
-            }
+            else if (types.includes('blackhole') || charsArray.includes('穴')) { isBlackHole = true; combinedType = 'blackhole'; }
 
             let resultData = {
                 density: totalDensity / count,          
@@ -550,25 +623,17 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
                 isBlackHole: isBlackHole,               
                 type: combinedType                      
             };
-
-            // ★ 「倍」が含まれている場合は増殖タイマーを持たせる
-            if (combinedType === 'multiply') {
-                resultData.lastMultiplyTime = Date.now();
-            }
-
+            if (combinedType === 'multiply') resultData.lastMultiplyTime = Date.now();
             return resultData;
         }
 
-        // 【機能追加】合体文字（1つの物理ブロック）を生成する関数
         function addCombinedWord(textStr, xPos, yPos, options = {}) {
             if (!textStr) return null;
-            const chars = textStr.split('').slice(0, 4); // 最大4文字まで切り出し
+            const chars = textStr.split('').slice(0, 4); 
             if (chars.length === 0) return null;
 
             const fontSize = options.fontSize || Math.floor(Math.random() * 10) + 50; 
             const charData = getCombinedCharacterData(chars, fontSize);
-
-            // ★ 「爆」や「浮」が含まれる場合は画面下から湧かせる
             const isFromBottom = (charData.type === 'bomb' || charData.type === 'float' || chars.includes('爆') || chars.includes('浮'));
             
             const x = xPos !== undefined && xPos !== null ? xPos : Math.random() * (width - 100) + 50;
@@ -598,79 +663,59 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
                 opacity: 1.0,
                 charData: charData,
                 font: options.font || 'serif',
-                spawnTime: Date.now() // ★ 爆発の即死防止用
+                spawnTime: Date.now()
             };
 
-            // ★ 「爆」や「浮」に応じた初速を設定
-            if (options.velocity) {
-                Body.setVelocity(wordBody, options.velocity);
-            } else if (charData.type === 'bomb' || chars.includes('爆')) {
-                Body.setVelocity(wordBody, { x: (Math.random() - 0.5) * 6, y: -18 });
-            } else if (charData.type === 'float' || chars.includes('浮')) {
-                Body.setVelocity(wordBody, { x: (Math.random() - 0.5) * 3, y: -8 });
-            } else if (isAbyss) {
-                Body.setVelocity(wordBody, { x: 0, y: ABYSS_FALL_SPEED });
-            } else if (isBouncing) {
+            if (options.velocity) Body.setVelocity(wordBody, options.velocity);
+            else if (charData.type === 'bomb' || chars.includes('爆')) Body.setVelocity(wordBody, { x: (Math.random() - 0.5) * 6, y: -18 });
+            else if (charData.type === 'float' || chars.includes('浮')) Body.setVelocity(wordBody, { x: (Math.random() - 0.5) * 3, y: -8 });
+            else if (isAbyss) Body.setVelocity(wordBody, { x: 0, y: ABYSS_FALL_SPEED });
+            else if (isBouncing) {
                 const angle = Math.random() * Math.PI * 2;
                 Body.setVelocity(wordBody, { x: Math.cos(angle) * BOUNCE_SPEED, y: Math.sin(angle) * BOUNCE_SPEED });
             }
 
             Composite.add(world, wordBody);
-            
-            if (!isAbyss) {
-                playPopSound(500, 'square', 0.08);
-            }
+            if (!isAbyss) playPopSound(500, 'square', 0.08);
             return wordBody;
         }
+
         Events.on(engine, 'beforeUpdate', () => {
             const constraints = Composite.allConstraints(world);
             const bodies = Composite.allBodies(world);
 
-            // ★ 【修正】たるむ紐（ロープ）の物理挙動
             constraints.forEach(c => {
                 if (c.isRope && c.bodyA && c.bodyB) {
-                    // 回転を考慮した接続点の位置を計算
                     const posA = Vector.add(c.bodyA.position, Vector.rotate(c.pointA || {x:0, y:0}, c.bodyA.angle));
                     const posB = Vector.add(c.bodyB.position, Vector.rotate(c.pointB || {x:0, y:0}, c.bodyB.angle));
                     const currentDist = Vector.magnitude(Vector.sub(posA, posB));
-
-                    c.length = c.maxLength; // 長さは常に最大長に固定
-
-                    if (currentDist > c.maxLength) {
-                        // 最大長を超えて離れようとした時だけ引っ張る
-                        c.stiffness = 0.9;
-                    } else {
-                        // 内側にいる時は力を完全にゼロ(0)にして自由運動（たるませる）
-                        c.stiffness = 0;
-                    }
+                    c.length = c.maxLength; 
+                    c.stiffness = (currentDist > c.maxLength) ? 0.9 : 0;
                 }
             });
-    const blackHoles = bodies.filter(b => b.customText && b.customText.charData.isBlackHole);
-    const multiplySpeedSec = parseFloat(document.getElementById('multiplySpeed')?.value || 5);
 
-    bodies.forEach(body => {
-        if (!body.customText) return;
-        const charType = body.customText.charData.type;
+            const blackHoles = bodies.filter(b => b.customText && b.customText.charData.isBlackHole);
+            const multiplySpeedSec = parseFloat(document.getElementById('multiplySpeed')?.value || 5);
 
-        // 【浮】上向きの浮力を加える
-        if (charType === 'float' && !body.isStatic) {
-            Body.applyForce(body, body.position, { x: 0, y: -0.0025 * body.mass });
-        }
+            bodies.forEach(body => {
+                if (!body.customText) return;
+                const charType = body.customText.charData.type;
 
-        // 【倍】スライダーで指定した秒数ごとに自己複製（画面内最大30個制限で安全確保）
-        if (charType === 'multiply') {
-            const now = Date.now();
-            if (!body.customText.charData.lastMultiplyTime) body.customText.charData.lastMultiplyTime = now;
-
-            if (now - body.customText.charData.lastMultiplyTime > multiplySpeedSec * 1000) {
-                body.customText.charData.lastMultiplyTime = now;
-                
-                const multiplyCount = bodies.filter(b => b.customText && b.customText.charData.type === 'multiply').length;
-                if (multiplyCount < 30) { // ブラウザフリーズ防止用の安全上限
-                    addWord("倍", body.position.x + (Math.random() - 0.5) * 40, body.position.y - 20);
+                if (charType === 'float' && !body.isStatic) {
+                    Body.applyForce(body, body.position, { x: 0, y: -0.0025 * body.mass });
                 }
-            }
-        }
+
+                if (charType === 'multiply') {
+                    const now = Date.now();
+                    if (!body.customText.charData.lastMultiplyTime) body.customText.charData.lastMultiplyTime = now;
+                    if (now - body.customText.charData.lastMultiplyTime > multiplySpeedSec * 1000) {
+                        body.customText.charData.lastMultiplyTime = now;
+                        const multiplyCount = bodies.filter(b => b.customText && b.customText.charData.type === 'multiply').length;
+                        if (multiplyCount < 30) {
+                            addWord("倍", body.position.x + (Math.random() - 0.5) * 40, body.position.y - 20);
+                        }
+                    }
+                }
 
                 blackHoles.forEach(hole => {
                     const vec = Vector.sub(hole.position, body.position);
@@ -682,18 +727,16 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
                     }
                 });
 
-                // 従来のブラックホール（isBlackHole）に加えて、新タイプの「gravity」を持つものも引力を発生させるようにする
-    const gravityBodies = bodies.filter(b => b.customText && (b.customText.charData.isBlackHole || b.customText.charData.type === 'gravity'));
-
-    gravityBodies.forEach(hole => {
-        const vec = Vector.sub(hole.position, body.position);
-        const distance = Vector.magnitude(vec);
-        if (distance < 2000 && distance > 1) {
-            const forceMagnitude = (body.mass * 0.0005) * (2000 / distance);
-            const force = Vector.mult(Vector.normalise(vec), forceMagnitude);
-            Body.applyForce(body, body.position, force);
-        }
-    });
+                const gravityBodies = bodies.filter(b => b.customText && (b.customText.charData.isBlackHole || b.customText.charData.type === 'gravity'));
+                gravityBodies.forEach(hole => {
+                    const vec = Vector.sub(hole.position, body.position);
+                    const distance = Vector.magnitude(vec);
+                    if (distance < 2000 && distance > 1) {
+                        const forceMagnitude = (body.mass * 0.0005) * (2000 / distance);
+                        const force = Vector.mult(Vector.normalise(vec), forceMagnitude);
+                        Body.applyForce(body, body.position, force);
+                    }
+                });
                     
                 if (body.dragContext) {
                     Body.setAngle(body, body.dragContext.fixedAngle);
@@ -721,25 +764,22 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
                     body.torque = (Math.random() - 0.5) * 0.05 * body.mass;
                 }
 
-               if (body.position.y > height + 300) removeBodySafely(body);
+                if (body.position.y > height + 300) removeBodySafely(body);
                 
                 if (isAbyss && body.customText) {
                     Body.setAngle(body, 0);
                     Body.setAngularVelocity(body, 0);
                     Body.setVelocity(body, { x: 0, y: ABYSS_FALL_SPEED });
                 }
-            }); // 【重要】ここで全オブジェクトのループ(bodies.forEach)を一度きれいに閉じます
+            });
 
-            // 磁石の計算は、他のオブジェクトの数に影響されないように独立して実行する
+            // 磁石の相互作用
             const magnets = bodies.filter(b => b.customText && b.customText.magnet);
-
-            // 【新機能】片方が固定されている時に磁力を半分にする機能のオンオフ（trueで有効、falseで無効）
             const IS_MAGNET_HALF_ON_STATIC = true;
 
             magnets.forEach((bodyB, i) => {
                 for (let j = i + 1; j < magnets.length; j++) {
                     const bodyA = magnets[j];
-                    
                     if (bodyA.isStatic && bodyB.isStatic) continue;
 
                     const vec = Vector.sub(bodyA.position, bodyB.position);
@@ -748,95 +788,72 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
                     if (distance < 300 && distance > 25) {
                         const massB = bodyB.isStatic ? 30 : bodyB.mass;
                         const massA = bodyA.isStatic ? 30 : bodyA.mass;
-
-                        // ベースの磁力計算
                         let forceMagnitude = (massB * massA) / (distance * distance) * 20; 
 
-                        // 【修正】ただ掴んでいるだけの場合を除外し、本当にロック（ピン留め）されている磁石があるか厳密にチェック
                         const isStrictStaticB = bodyB.isStatic && !bodyB.dragContext;
                         const isStrictStaticA = bodyA.isStatic && !bodyA.dragContext;
-
-                        if (IS_MAGNET_HALF_ON_STATIC && (isStrictStaticB || isStrictStaticA)) {
-                            // 変化がわかりやすいように、半分(0.5)からさらに「4分の1(0.25)」まで磁力をガッツリ落とします
-                            forceMagnitude *= 0.25; 
-                        }
+                        if (IS_MAGNET_HALF_ON_STATIC && (isStrictStaticB || isStrictStaticA)) forceMagnitude *= 0.25; 
                         
                         if (distance > 0.001) {
                             const force = Vector.mult(Vector.normalise(vec), forceMagnitude);
                             const isSamePole = bodyB.customText.magnet === bodyA.customText.magnet;
-                            
-                            if (!bodyB.isStatic) {
-                                const forceToB = isSamePole ? Vector.neg(force) : force;
-                                Body.applyForce(bodyB, bodyB.position, forceToB);
-                            }
-                            
-                            if (!bodyA.isStatic) {
-                                const forceToA = isSamePole ? force : Vector.neg(force);
-                                Body.applyForce(bodyA, bodyA.position, forceToA);
-                            }
+                            if (!bodyB.isStatic) Body.applyForce(bodyB, bodyB.position, isSamePole ? Vector.neg(force) : force);
+                            if (!bodyA.isStatic) Body.applyForce(bodyA, bodyA.position, isSamePole ? force : Vector.neg(force));
                         }
                     }
                 }
             });
-            });
+        });
 
         Events.on(engine, 'collisionStart', (event) => {
-    event.pairs.forEach((pair) => {
-        const { bodyA, bodyB } = pair;
-        
-        // 【跳】一文字トランポリン判定
-        const isTrampoline = bodyA.label === 'special_trampoline' || bodyB.label === 'special_trampoline' ||
-                             (bodyA.customText && bodyA.customText.charData.type === 'trampoline') ||
-                             (bodyB.customText && bodyB.customText.charData.type === 'trampoline');
-        if (isTrampoline) {
-            const tramp = (bodyA.label === 'special_trampoline' || bodyA.customText?.charData.type === 'trampoline') ? bodyA : bodyB;
-            const other = tramp === bodyA ? bodyB : bodyA;
-            if (!other.isStatic) {
-                const bounceForce = isVariableBounce ? Math.max(18, Vector.magnitude(other.velocity) * 1.2) : 18;
-                Body.setVelocity(other, { x: (Math.random() - 0.5) * 5, y: -bounceForce });
-                playPopSound(1200, 'sine', 0.05);
-            }
-        }
+            event.pairs.forEach((pair) => {
+                const { bodyA, bodyB } = pair;
+                
+                const isTrampoline = bodyA.label === 'special_trampoline' || bodyB.label === 'special_trampoline' ||
+                                     (bodyA.customText && bodyA.customText.charData.type === 'trampoline') ||
+                                     (bodyB.customText && bodyB.customText.charData.type === 'trampoline');
+                if (isTrampoline) {
+                    const tramp = (bodyA.label === 'special_trampoline' || bodyA.customText?.charData.type === 'trampoline') ? bodyA : bodyB;
+                    const other = tramp === bodyA ? bodyB : bodyA;
+                    if (!other.isStatic) {
+                        const bounceForce = isVariableBounce ? Math.max(18, Vector.magnitude(other.velocity) * 1.2) : 18;
+                        Body.setVelocity(other, { x: (Math.random() - 0.5) * 5, y: -bounceForce });
+                        playPopSound(1200, 'sine', 0.05);
+                    }
+                }
 
-        // 【爆】衝突時に周辺を強烈に吹き飛ばして消滅（威力・範囲UP）
-        // 【爆】衝突時に周辺を強烈に吹き飛ばして消滅
-        const bomb = (bodyA.customText?.charData.type === 'bomb') ? bodyA : (bodyB.customText?.charData.type === 'bomb' ? bodyB : null);
-        if (bomb) {
-            // ★ 生成されてから300ミリ秒（0.3秒）経っていなければ爆発しない
-            if (bomb.customText.spawnTime && Date.now() - bomb.customText.spawnTime < 300) {
-                return; // まだ爆発しない
-            }
+                const bomb = (bodyA.customText?.charData.type === 'bomb') ? bodyA : (bodyB.customText?.charData.type === 'bomb' ? bodyB : null);
+                if (bomb) {
+                    if (bomb.customText.spawnTime && Date.now() - bomb.customText.spawnTime < 300) return;
+                    const bodies = Composite.allBodies(world);
+                    bodies.forEach(b => {
+                        if (b !== bomb && !b.isStatic) {
+                            const vec = Vector.sub(b.position, bomb.position);
+                            const dist = Vector.magnitude(vec);
+                            if (dist < 750 && dist > 1) {
+                                const force = Vector.mult(Vector.normalise(vec), (750 - dist) * 0.025 * b.mass);
+                                Body.applyForce(b, b.position, force);
+                            }
+                        }
+                    });
+                    playPopSound(100, 'sawtooth', 0.3);
+                    Composite.remove(world, bomb);
+                }
 
-            const bodies = Composite.allBodies(world);
-            bodies.forEach(b => {
-                if (b !== bomb && !b.isStatic) {
-                    const vec = Vector.sub(b.position, bomb.position);
-                    const dist = Vector.magnitude(vec);
-                    if (dist < 750 && dist > 1) {
-                        const force = Vector.mult(Vector.normalise(vec), (750 - dist) * 0.025 * b.mass);
-                        Body.applyForce(b, b.position, force);
+                const hole = (bodyA.customText?.charData.isBlackHole) ? bodyA : (bodyB.customText?.charData.isBlackHole ? bodyB : null);
+                if (hole) {
+                    const victim = hole === bodyA ? bodyB : bodyA;
+                    if (victim !== hole && !victim.isStatic) {
+                        playPopSound(100, 'sine', 0.1);
+                        removeBodySafely(victim);
                     }
                 }
             });
-            playPopSound(100, 'sawtooth', 0.3);
-            Composite.remove(world, bomb);
-        }
-        // 【ブラックホール】中心に接触した文字を消去
-        const hole = (bodyA.customText?.charData.isBlackHole) ? bodyA : (bodyB.customText?.charData.isBlackHole ? bodyB : null);
-        if (hole) {
-            const victim = hole === bodyA ? bodyB : bodyA;
-            if (victim !== hole && !victim.isStatic) {
-                playPopSound(100, 'sine', 0.1);
-                removeBodySafely(victim); // 先ほど作った安全な削除関数を使う
-            }
-        }
-    });
-});
+        });
 
         Events.on(engine, 'collisionEnd', (event) => {
             event.pairs.forEach((pair) => {
                 const { bodyA, bodyB } = pair;
-                
                 const isIceFloor = bodyA.label === 'ice_floor' || bodyB.label === 'ice_floor';
                 if (isIceFloor) {
                     const other = bodyA.label === 'ice_floor' ? bodyB : bodyA;
@@ -854,35 +871,30 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
         const virtualKeyboard = document.getElementById('virtualKeyboard');
         const vkToggleBtn = document.getElementById('vkToggleBtn');
 
+        // レンダリング＆紐の描画
         Events.on(render, 'afterRender', function() {
             const context = render.context;
             const bodies = Composite.allBodies(world);
 
-            // ★ 【追加】たるむ紐（ロープ）の垂れ下がり描画
             const constraints = Composite.allConstraints(world);
             constraints.forEach(c => {
                 if (c.isRope && c.bodyA && c.bodyB) {
                     const posA = Vector.add(c.bodyA.position, Vector.rotate(c.pointA || {x:0, y:0}, c.bodyA.angle));
                     const posB = Vector.add(c.bodyB.position, Vector.rotate(c.pointB || {x:0, y:0}, c.bodyB.angle));
-
                     const currentDist = Vector.magnitude(Vector.sub(posA, posB));
-                    const slack = Math.max(0, c.maxLength - currentDist); // たるみ量
+                    const slack = Math.max(0, c.maxLength - currentDist); 
 
                     context.save();
                     context.beginPath();
                     context.moveTo(posA.x, posA.y);
-
                     if (slack > 2) {
-                        // 重力方向（下）へ垂れ下がる曲線を描く
                         const midX = (posA.x + posB.x) / 2;
                         const midY = (posA.y + posB.y) / 2 + slack * 0.55; 
                         context.quadraticCurveTo(midX, midY, posB.x, posB.y);
                     } else {
-                        // ピンと張ったときは直線
                         context.lineTo(posB.x, posB.y);
                     }
-
-                    context.strokeStyle = isAbyss ? '#ffffff' : '#8d6e63'; // 麻縄風の色
+                    context.strokeStyle = isAbyss ? '#ffffff' : '#8d6e63';
                     context.lineWidth = 3;
                     context.lineCap = 'round';
                     context.stroke();
@@ -901,12 +913,13 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
                     context.translate(body.position.x, body.position.y);
                     context.rotate(body.angle);
 
-                    // バーチャルキーボードが表示中、かつ選択中の場合のみハイライトを適用する
                     const isSelected = (body === lastGrabbedBody) && !virtualKeyboard.classList.contains('hidden');
+                    const isLinkSource = (body === linkSourceBody || body === boardSourceBody);
 
-                    // --- 描画色の優先順位変更：磁石状態を最優先 ---
                     if (body.customText.magnet) {
                         context.fillStyle = (body.customText.magnet === 'S') ? "#2196F3" : "#F44336";
+                    } else if (isLinkSource) {
+                        context.fillStyle = "#e91e63"; // 紐・板の接続元はピンク色でハイライト
                     } else if (isSelected) {
                         context.fillStyle = "#ff9800"; 
                     } else if (body.label === 'ice_floor' || (body.customText && body.customText.content === "氷")) {
@@ -915,81 +928,46 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
                         context.fillStyle = color;
                     }
                     
-                    // --- 影の優先順位変更：磁石状態を最優先 ---
                     if (body.customText.magnet) {
                         context.shadowBlur = 15;
                         context.shadowColor = (body.customText.magnet === 'S') ? "#2196F3" : "#F44336";
-                        context.shadowOffsetX = 0;
-                        context.shadowOffsetY = 0;
-                    } else if (isSelected) {
-                         context.shadowColor = '#ff9800';
+                    } else if (isLinkSource || isSelected) {
+                         context.shadowColor = isLinkSource ? '#e91e63' : '#ff9800';
                          context.shadowBlur = 15;
-                         context.shadowOffsetX = 0;
-                         context.shadowOffsetY = 0;
                     } else {
-                        if (isAbyss) {
-                            context.shadowColor = 'rgba(255,255,255,0.6)';
-                            context.shadowBlur = 10;
-                            context.shadowOffsetX = 0;
-                            context.shadowOffsetY = 0;
-                        } else {
-                            context.shadowColor = 'rgba(0,0,0,0.2)';
-                            context.shadowBlur = 4;
-                            context.shadowOffsetX = 2;
-                            context.shadowOffsetY = 2;
-                        }
+                        context.shadowColor = isAbyss ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.2)';
+                        context.shadowBlur = isAbyss ? 10 : 4;
+                        context.shadowOffsetX = isAbyss ? 0 : 2;
+                        context.shadowOffsetY = isAbyss ? 0 : 2;
                     }
 
-                   if (charData.type === 'alphabet') {
+                    if (charData.type === 'alphabet') {
                         context.font = `bold ${size}px 'Arial', sans-serif`;
                     } else {
                         context.font = `bold ${size}px ${font || 'serif'}`;
                     }
                     
-                    // 【修正】1文字枠内で完璧にスライス結合するキメラ描画ロジック
-                    // 【修正】1文字枠内で完璧にスライス結合するキメラ描画ロジック
                     if (body.customText.isCombined) {
                         const chars = body.customText.chars;
-                        const h = size * 0.45; // 中心からのマスク半径（1文字分に収める調整値）
-
+                        const h = size * 0.45;
                         if (chars.length === 1) {
-                            // 1文字の場合
                             context.fillText(chars[0], 0, 0);
                         } else if (chars.length === 2) {
-                            // --- 2文字（左右半々にスライス合体） ---
-                            context.save();
-                            context.beginPath();
-                            context.rect(-h, -h, h, h * 2);
-                            context.clip();
-                            context.fillText(chars[0], 0, 0);
-                            context.restore();
-                            
-                            context.save();
-                            context.beginPath();
-                            context.rect(0, -h, h, h * 2);
-                            context.clip();
-                            context.fillText(chars[1], 0, 0);
-                            context.restore();
-
+                            context.save(); context.beginPath(); context.rect(-h, -h, h, h * 2); context.clip(); context.fillText(chars[0], 0, 0); context.restore();
+                            context.save(); context.beginPath(); context.rect(0, -h, h, h * 2); context.clip(); context.fillText(chars[1], 0, 0); context.restore();
                         } else if (chars.length === 3) {
-                            // --- 3文字（左上・左下・右半分） ---
                             context.save(); context.beginPath(); context.rect(-h, -h, h, h); context.clip(); context.fillText(chars[0], 0, 0); context.restore();
                             context.save(); context.beginPath(); context.rect(-h, 0, h, h); context.clip(); context.fillText(chars[1], 0, 0); context.restore();
                             context.save(); context.beginPath(); context.rect(0, -h, h, h * 2); context.clip(); context.fillText(chars[2], 0, 0); context.restore();
-
                         } else if (chars.length >= 4) {
-                            // --- 4文字（田の字4分割：左上・右上・左下・右下） ---
                             context.save(); context.beginPath(); context.rect(-h, -h, h, h); context.clip(); context.fillText(chars[0], 0, 0); context.restore();
                             context.save(); context.beginPath(); context.rect(0, -h, h, h); context.clip(); context.fillText(chars[1], 0, 0); context.restore();
                             context.save(); context.beginPath(); context.rect(-h, 0, h, h); context.clip(); context.fillText(chars[2], 0, 0); context.restore();
                             context.save(); context.beginPath(); context.rect(0, 0, h, h); context.clip(); context.fillText(chars[3], 0, 0); context.restore();
                         }
                     } else {
-                        // 通常の1文字描画
                         context.fillText(content, 0, 0);
                     }
-                    
-                    // ★末尾にあった不要な context.fillText(content, 0, 0); を削除しました
                     context.restore();
                 }
             });
@@ -1027,56 +1005,43 @@ if (char === "穴" || char === "ブラックホール") { // またはお好み�
             const startX = (width - totalWidth) / 2;
 
             chars.forEach((char, i) => {
-                addWord(char, startX + i * spacing, -100, {
-                    fontSize: fontSize,
-                    isSensor: true
-                });
+                addWord(char, startX + i * spacing, -100, { fontSize: fontSize, isSensor: true });
             });
         }
 
-        // オブジェクトに付随する紐を先に掃除してから消去する安全な削除関数
-function removeBodySafely(body) {
-    const allConstraints = Composite.allConstraints(world);
-    allConstraints.forEach(constraint => {
-        if (constraint.bodyA === body || constraint.bodyB === body) {
-            // ここで相手のボディを再帰的に消そうとしてたり、
-            // 紐の構造によって無限ループに入っていた
-            removeBodySafely(constraint.bodyB); // ← これが原因！
+        function removeBodySafely(body) {
+            const allConstraints = Composite.allConstraints(world);
+            allConstraints.forEach(constraint => {
+                if (constraint.bodyA === body || constraint.bodyB === body) {
+                    Composite.remove(world, constraint);
+                }
+            });
+            Composite.remove(world, body);
         }
-    });
-    Composite.remove(world, body);
-}
 
         function handleAdd() {
             let val = input.value.trim().replace(/：/g, ':');
             if (!val) return;
 
-            // 【完全防止】「合体:」または「合体」コマンドの優先一括処理
             if (val.startsWith("合体:") || val.startsWith("合体")) {
                 let combineText = val.replace(/^合体:?/, '').trim();
                 if (combineText) {
                     for (let i = 0; i < combineText.length; i += 4) {
                         const chunk = combineText.substring(i, i + 4);
-                        setTimeout(() => {
-                            addCombinedWord(chunk);
-                        }, (i / 4) * 120);
+                        setTimeout(() => { addCombinedWord(chunk); }, (i / 4) * 120);
                     }
                     input.value = '';
                     return;
                 }
             }
 
-            // 特殊コマンドの辞書リスト（★ 「無重力」「ブラックホール」を追加！）
-            const specialCommands = ["トランポリン", "氷床", "鎖", "つなげる", "連結", "バウンド", "無重力", "ブラックホール", "全てあなたの所為です", "深淵","浮止"];
-
+            const specialCommands = ["トランポリン", "氷床", "鎖", "つなげる", "連結", "バウンド", "無重力", "ブラックホール", "全てあなたの所為です", "深淵", "浮止"];
             let createdBodies = [];
             let shouldLinkGroups = false;
-
             const items = val.split(/[\s ]+/);
 
             items.forEach(item => {
                 if (!item) return;
-
                 let parts = item.split(':');
                 let font = 'serif';
                 let isChainCommand = false;
@@ -1091,20 +1056,13 @@ function removeBodySafely(body) {
                     text = parts[parts.length - 1];
                     for (let i = 0; i < parts.length - 1; i++) {
                         let part = parts[i];
-                        if (part === "つなげる" || part === "鎖") {
-                            isChainCommand = true;
-                            shouldLinkGroups = true; 
-                        } else if (part === "連結") {
-                            isConnectCommand = true;
-                        } else if (specialCommands.includes(part)) {
-                            command = part; 
-                        } else {
-                            font = part; 
-                        }
+                        if (part === "つなげる" || part === "鎖") { isChainCommand = true; shouldLinkGroups = true; } 
+                        else if (part === "連結") { isConnectCommand = true; } 
+                        else if (specialCommands.includes(part)) { command = part; } 
+                        else { font = part; }
                     }
                 }
 
-                // --- ★ 【修正】各コマンドを独立した else if に分離 ---
                 if (command === "バウンド" || text === "バウンド") {
                     isBouncing = !isBouncing;
                     document.body.classList.toggle('grayscale-mode', isBouncing);
@@ -1117,12 +1075,11 @@ function removeBodySafely(body) {
                             }
                         });
                     }
-                    statusLabel.innerText = isBouncing ? "バウンドモード：有効 (等速反射)" : "通常モード";
+                    statusLabel.innerText = isBouncing ? "バウンドモード：有効" : "通常モード";
                     playPopSound(isBouncing ? 800 : 400);
                 } 
                 else if (command === "無重力" || text === "無重力") {
                     engine.gravity.y = (engine.gravity.y === 0) ? 1.0 : 0;
-                    // ★ 無重力ONのときにクラスを付与、OFFのときに外す
                     document.body.classList.toggle('zero-gravity-mode', engine.gravity.y === 0);
                     statusLabel.innerText = (engine.gravity.y === 0) ? "無重力モード: ON" : "通常モード";
                     playPopSound(600, 'sine', 0.1);
@@ -1131,7 +1088,6 @@ function removeBodySafely(body) {
                     addFloatStoppedObject("浮");
                 }
                 else if (command === "ブラックホール" || text === "ブラックホール") {
-                    // ★ 画面中央（width/2, height/2）に巨大なブラックホールを召喚
                     addWord("穴", width / 2, height / 2, { fontSize: 90 });
                     statusLabel.innerText = "ブラックホール発生！";
                     playPopSound(150, 'sawtooth', 0.15);
@@ -1171,7 +1127,24 @@ function removeBodySafely(body) {
                 }
             });
 
-            // (連結処理の末尾などは既存通り)
+            if (shouldLinkGroups && createdBodies.length >= 2) {
+                for (let i = 0; i < createdBodies.length - 1; i++) {
+                    const prevGroup = createdBodies[i];
+                    const nextGroup = createdBodies[i + 1];
+                    const constraint = Constraint.create({
+                        bodyA: prevGroup.last,
+                        bodyB: nextGroup.first,
+                        pointA: { x: 0, y: 20 },
+                        pointB: { x: 0, y: -20 },
+                        stiffness: 0.9,
+                        length: 60, 
+                        render: { visible: false }
+                    });
+                    constraint.isRope = true;
+                    constraint.maxLength = 60;
+                    Composite.add(world, constraint);
+                }
+            }
             input.value = '';
         }
 
@@ -1180,17 +1153,17 @@ function removeBodySafely(body) {
         
         clearBtn.onclick = () => {
             const allConstraints = Composite.allConstraints(world);
-            allConstraints.forEach(constraint => {
-                Composite.remove(world, constraint);
-            });
-
+            allConstraints.forEach(constraint => Composite.remove(world, constraint));
             const toRemove = Composite.allBodies(world).filter(b => !b.isStatic || b.isStaticToggle);
             Composite.remove(world, toRemove);
-
             if (Composite.allConstraints(world).indexOf(mouseConstraint) === -1) {
                 Composite.add(world, mouseConstraint);
             }
-
+            // 接続状態の初期化
+            linkSourceBody = null;
+            boardSourceBody = null;
+            isYKeyPressed = false;
+            isTKeyPressed = false;
             playPopSound(200, 'square', 0.1);
         };
 
@@ -1198,155 +1171,120 @@ function removeBodySafely(body) {
             isAbyss = false;
             isBouncing = false;
             document.body.className = "normal-mode";
-            document.body.classList.remove('zero-gravity-mode'); // ★ クラスを解除
+            document.body.classList.remove('zero-gravity-mode'); 
             engine.gravity.y = 1.0;
             if (ground) ground.isSensor = false;
-            statusLabel.innerText = "掴んでホイール回転 / 英字は軽快に跳ねる / 「k」固定 / 「b」風";
-            
+            statusLabel.innerText = "掴んでホイール回転 / 「k」固定 / 「b」風 / 「p」精密判定";
             Composite.allBodies(world).forEach(body => {
                 if (body.customText) {
                     body.customText.color = "#1a1a1a";
                     body.isSensor = false;
                 }
             });
+            linkSourceBody = null;
+            boardSourceBody = null;
+            isYKeyPressed = false;
+            isTKeyPressed = false;
             playPopSound(400);
         };
 
         function addFloatStoppedObject(text) {
             const x = Math.random() * (width - 200) + 100;
-            const y = height / 2; // 画面の中央付近に出現
+            const y = height / 2; 
             const fontSize = 55;
             const w = fontSize * text.length * 0.8;
             const h = fontSize * 1.2;
 
             const body = Bodies.rectangle(x, y, w, h, {
-                density: 0.001,
-                restitution: 0.4,
-                friction: 0.2,
-                render: { visible: false }
+                density: 0.001, restitution: 0.4, friction: 0.2, render: { visible: false }
             });
-
             body.customText = {
-                content: text,
-                size: fontSize,
-                color: isAbyss ? "#ffffff" : "#1a1a1a",
-                opacity: 1.0,
-                charData: { type: 'float_stopped' }, // ★ 最初は止まっているタイプ
-                font: 'serif'
+                content: text, size: fontSize, color: isAbyss ? "#ffffff" : "#1a1a1a",
+                opacity: 1.0, charData: { type: 'float_stopped' }, font: 'serif'
             };
-
             Composite.add(world, body);
             playPopSound(500, 'sine', 0.1);
         }
 
-        const randomChars = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんABCDEFGabcdefg0123456789漢字所為跳躍深淵回転固定フロクロ方眼紙原稿用紙JavaScriptジャバスクリプトカタカナひらがなalphabet記号";
+        const randomChars = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんABCDEFGabcdefg0123456789漢字所為跳躍深淵回転固定フロクロ方眼紙原稿用紙";
         render.canvas.addEventListener('mousedown', (e) => {
             const mousePos = mouse.position;
             const bodiesAtPoint = Matter.Query.point(Composite.allBodies(world), mousePos);
 
-            // 【Yキー押しながらクリックで「たるむ紐」連結】
-            if (isYKeyPressed && bodiesAtPoint.length > 0) {
-                const clickedBody = bodiesAtPoint[0];
-                if (!linkSourceBody) {
-                    linkSourceBody = clickedBody;
-                    statusLabel.innerText = "紐で繋ぐ2つ目の文字をクリックしてください (qでキャンセル)";
-                    playPopSound(700, 'sine', 0.05);
-                } else if (linkSourceBody !== clickedBody) {
-                    const dist = Vector.magnitude(Vector.sub(linkSourceBody.position, clickedBody.position));
-                    const ropeLength = dist + 30; // 初期の長さにゆとりを持たせる
-
-                    const constraint = Matter.Constraint.create({
-                        bodyA: linkSourceBody,
-                        bodyB: clickedBody,
-                        stiffness: 0.9,
-                        length: ropeLength,
-                        render: { visible: false } // カスタム描画するためオフ
-                    });
-
-                    constraint.isRope = true;
-                    constraint.maxLength = ropeLength;
-
-                    Composite.add(world, constraint);
-                    playPopSound(1000, 'sine', 0.08);
-                    linkSourceBody = null; // 連結完了したらリセット
-                    statusLabel.innerText = "通常モード";
+            // 1. 紐連結モード時の処理
+            if (activeMode === 'rope') {
+                if (bodiesAtPoint.length > 0) {
+                    const clickedBody = bodiesAtPoint[0];
+                    if (!linkSourceBody) {
+                        linkSourceBody = clickedBody;
+                        statusLabel.innerText = "2つ目の文字をクリックしてください (Qでキャンセル)";
+                        playPopSound(700, 'sine', 0.05);
+                    } else if (linkSourceBody !== clickedBody) {
+                        const dist = Vector.magnitude(Vector.sub(linkSourceBody.position, clickedBody.position));
+                        const ropeLength = dist + 30; 
+                        const constraint = Constraint.create({
+                            bodyA: linkSourceBody, bodyB: clickedBody,
+                            stiffness: 0.9, length: ropeLength, render: { visible: false } 
+                        });
+                        constraint.isRope = true;
+                        constraint.maxLength = ropeLength;
+                        Composite.add(world, constraint);
+                        playPopSound(1000, 'sine', 0.08);
+                        setInteractionMode('normal'); // 完了したら通常モードへ復帰
+                    }
                 }
-                return;
+                return; // 接続モード中は通常のドラッグ等をブロック
             }
+
+            // 2. 板連結モード時の処理
+            if (activeMode === 'board') {
+                if (bodiesAtPoint.length > 0) {
+                    const clickedBody = bodiesAtPoint[0];
+                    if (!boardSourceBody) {
+                        boardSourceBody = clickedBody;
+                        statusLabel.innerText = "2つ目の文字をクリックしてください (Qでキャンセル)";
+                        playPopSound(600, 'square', 0.05);
+                    } else if (boardSourceBody !== clickedBody) {
+                        const dist = Vector.magnitude(Vector.sub(boardSourceBody.position, clickedBody.position));
+                        const c1 = Constraint.create({ bodyA: boardSourceBody, bodyB: clickedBody, stiffness: 0.95, length: dist, render: { visible: true, strokeStyle: '#a1887f', lineWidth: 14 } });
+                        const c2 = Constraint.create({ bodyA: boardSourceBody, bodyB: clickedBody, pointA: { x: 10, y: 10 }, pointB: { x: 10, y: 10 }, stiffness: 0.95, length: dist, render: { visible: false } });
+                        Composite.add(world, [c1, c2]);
+                        playPopSound(400, 'square', 0.1);
+                        setInteractionMode('normal'); // 完了したら通常モードへ復帰
+                    }
+                }
+                return; // 接続モード中は通常のドラッグ等をブロック
+            }
+
+            // 「浮」のクリック起動
             if (e.button === 0 && bodiesAtPoint.length > 0) {
                 const clickedBody = bodiesAtPoint[0];
                 if (clickedBody.customText && clickedBody.customText.charData.type === 'float_stopped') {
-                    clickedBody.customText.charData.type = 'float'; // 浮上モードに変更！
+                    clickedBody.customText.charData.type = 'float'; 
                     playPopSound(800, 'sine', 0.08);
                     statusLabel.innerText = "「浮」が浮き始めました！";
-                    return; // 続けて他の処理が走らないようにする
+                    return; 
                 }
             }
 
-            // 【Tキー押しながらクリックで「板」連結】
-            if (isTKeyPressed && bodiesAtPoint.length > 0) {
-                const clickedBody = bodiesAtPoint[0];
-                if (!boardSourceBody) {
-                    boardSourceBody = clickedBody;
-                    statusLabel.innerText = "板で繋ぐ2つ目の文字をクリックしてください (qでキャンセル)";
-                    playPopSound(600, 'square', 0.05);
-                } else if (boardSourceBody !== clickedBody) {
-                    const dist = Vector.magnitude(Vector.sub(boardSourceBody.position, clickedBody.position));
+            if (e.button === 0 && bodiesAtPoint.length === 0) lastGrabbedBody = null;
 
-                    const c1 = Matter.Constraint.create({
-                        bodyA: boardSourceBody,
-                        bodyB: clickedBody,
-                        stiffness: 0.95,
-                        length: dist,
-                        render: { visible: true, strokeStyle: '#a1887f', lineWidth: 14 }
-                    });
-                    const c2 = Matter.Constraint.create({
-                        bodyA: boardSourceBody,
-                        bodyB: clickedBody,
-                        pointA: { x: 10, y: 10 },
-                        pointB: { x: 10, y: 10 },
-                        stiffness: 0.95,
-                        length: dist,
-                        render: { visible: false }
-                    });
-
-                    Composite.add(world, [c1, c2]);
-                    playPopSound(400, 'square', 0.1);
-                    boardSourceBody = null; // 連結完了したらリセット
-                    statusLabel.innerText = "通常モード";
-                }
-                return;
-            }
-
-    // （以下、既存の右クリック削除・文字追加処理...）
-            if (e.button === 0 && bodiesAtPoint.length === 0) {
-                lastGrabbedBody = null;
-            }
-
+            // 右クリック削除
             if (e.button === 2) {
                 bodiesAtPoint.forEach(body => {
                     if (!body.isStatic || body.isStaticToggle) {
-                        // 1. このボディに接続されている紐や板などの制約（Constraint）をすべて探し、ワールドから削除する
-                        const allConstraints = Composite.allConstraints(world);
-                        allConstraints.forEach(constraint => {
-                            if (constraint.bodyA === body || constraint.bodyB === body) {
-                                Composite.remove(world, constraint);
-                            }
-                        });
-                        
-                        // 2. ボディ本体をワールドから削除する
-                        Composite.remove(world, body);
-
-                        // 3. マウスの掴み状態や直前に掴んでいたボディの参照も綺麗にクリアする
+                        removeBodySafely(body);
                         if (mouseConstraint.body === body) mouseConstraint.body = null;
+                        if (mouseConstraint.constraint && mouseConstraint.constraint.bodyB === body) mouseConstraint.constraint.bodyB = null;
                         if (lastGrabbedBody === body) lastGrabbedBody = null;
-
+                        if (linkSourceBody === body) linkSourceBody = null;
+                        if (boardSourceBody === body) boardSourceBody = null;
                         playPopSound(200, 'square', 0.05);
                     }
                 });
                 return;
             }
-            // ▼【修正】クリックした位置に何もオブジェクトがない場合（bodiesAtPoint.length === 0）のみ文字を生成
+
             setTimeout(() => {
                 if (bodiesAtPoint.length === 0 && !mouseConstraint.body && !isAbyss && e.button === 0) {
                     const char = randomChars[Math.floor(Math.random() * randomChars.length)];
@@ -1373,64 +1311,37 @@ function removeBodySafely(body) {
             const fontSize = 60;
             const w = fontSize * 6; 
             const h = fontSize * 1.2;
-
             const trampBody = Bodies.rectangle(x, y, w, h, {
-                restitution: 0.8,
-                friction: 0.1,
-                label: 'special_trampoline',
-                render: { visible: false }
+                restitution: 0.8, friction: 0.1, label: 'special_trampoline', render: { visible: false }
             });
-
-            trampBody.customText = {
-                content: text,
-                size: fontSize,
-                color: "#000000", 
-                opacity: 1.0,
-                charData: { type: 'other' }
-            };
-
+            trampBody.customText = { content: text, size: fontSize, color: "#000000", opacity: 1.0, charData: { type: 'other' } };
             Composite.add(world, trampBody);
             playPopSound(400, 'square', 0.1);
         }
 
-        // 引数に font = 'serif' を追加します
         function addChain(text, font = 'serif') {
             const chars = text.split('');
             const fontSize = 50;
             const startX = Math.random() * (width - 200) + 100;
             const startY = 100; 
-            
             let lastBody = null;
             let firstBody = null;
 
             chars.forEach((char, i) => {
                 const currentY = startY + (i * (fontSize + 10));
-                // フォント設定をaddWordへ渡す
                 const body = addWord(char, startX, currentY, { fontSize: fontSize, font: font }); 
-
                 if (i === 0) firstBody = body;
-
                 if (lastBody && body) {
-                    const constraint = Matter.Constraint.create({
-                        bodyA: lastBody,
-                        bodyB: body,
-                        pointA: { x: 0, y: fontSize / 2 },
-                        pointB: { x: 0, y: -fontSize / 2 },
-                        stiffness: 0.4,
-                        length: 5,
-                        render: {
-                            visible: true,
-                            strokeStyle: isAbyss ? '#ffffff' : '#8d6e63',
-                            lineWidth: 3
-                        }
+                    const constraint = Constraint.create({
+                        bodyA: lastBody, bodyB: body,
+                        pointA: { x: 0, y: fontSize / 2 }, pointB: { x: 0, y: -fontSize / 2 },
+                        stiffness: 0.4, length: 5, render: { visible: true, strokeStyle: '#8d6e63', lineWidth: 3 }
                     });
                     Composite.add(world, constraint);
                 }
                 lastBody = body;
             });
             playPopSound(600, 'sine', 0.1);
-
-            // 先頭の文字と末尾の文字をオブジェクトで返す
             return { first: firstBody, last: lastBody };
         }
 
@@ -1440,23 +1351,10 @@ function removeBodySafely(body) {
             const h = fontSize * 1.5; 
             const x = Math.random() * (width - w) + w / 2;
             const y = 100;
-
             const iceBody = Bodies.rectangle(x, y, w, h, {
-                restitution: 0.1,
-                friction: 0,
-                frictionStatic: 0, 
-                frictionAir: 0.001,
-                label: 'ice_floor',
-                render: { visible: false }
+                restitution: 0.1, friction: 0, frictionStatic: 0, frictionAir: 0.001, label: 'ice_floor', render: { visible: false }
             });
-
-            iceBody.customText = {
-                content: text,
-                size: fontSize,
-                color: "#000000",
-                charData: { type: 'ice' }
-            };
-
+            iceBody.customText = { content: text, size: fontSize, color: "#000000", charData: { type: 'ice' } };
             Composite.add(world, iceBody);
         }
 
@@ -1466,26 +1364,12 @@ function removeBodySafely(body) {
             const h = fontSize * 1.2;
             const x = Math.random() * (width - w) + w / 2;
             const y = -50;
-
             const connectedBody = Bodies.rectangle(x, y, w, h, {
-                restitution: 0.4,
-                friction: 0.2,
-                label: 'connected_object',
-                render: { visible: false }
+                restitution: 0.4, friction: 0.2, label: 'connected_object', render: { visible: false }
             });
-
-            connectedBody.customText = {
-                content: text,
-                size: fontSize,
-                color: isAbyss ? "#ffffff" : "#1a1a1a",
-                charData: { type: 'other' },
-                font: font 
-            };
-
+            connectedBody.customText = { content: text, size: fontSize, color: isAbyss ? "#ffffff" : "#1a1a1a", charData: { type: 'other' }, font: font };
             Composite.add(world, connectedBody);
             playPopSound(500, 'sine', 0.1);
-
-            // ▼ここを追加！ 生成したオブジェクトを返します
             return connectedBody;
         }
 
@@ -1494,9 +1378,7 @@ function removeBodySafely(body) {
             playPopSound(500, 'sine', 0.05);
         });
 
-        function getTargetBody() {
-            return mouseConstraint.body || lastGrabbedBody;
-        }
+        function getTargetBody() { return mouseConstraint.body || lastGrabbedBody; }
 
         document.getElementById('vk-fix').addEventListener('click', () => {
             const targetBody = getTargetBody();
@@ -1506,17 +1388,13 @@ function removeBodySafely(body) {
         document.getElementById('vk-delete').addEventListener('click', () => {
             const targetBody = getTargetBody();
             if (targetBody && (!targetBody.isStatic || targetBody.isStaticToggle)) {
-                const allConstraints = Composite.allConstraints(world);
-                allConstraints.forEach(constraint => {
-                    if (constraint.bodyA === targetBody || constraint.bodyB === targetBody) {
-                        Composite.remove(world, constraint);
-                    }
-                });
-                Composite.remove(world, targetBody);
+                removeBodySafely(targetBody);
                 playPopSound(200, 'square', 0.05);
-                
                 if (mouseConstraint.body === targetBody) mouseConstraint.body = null;
+                if (mouseConstraint.constraint && mouseConstraint.constraint.bodyB === targetBody) mouseConstraint.constraint.bodyB = null;
                 if (lastGrabbedBody === targetBody) lastGrabbedBody = null;
+                if (linkSourceBody === targetBody) linkSourceBody = null;
+                if (boardSourceBody === targetBody) boardSourceBody = null;
             }
         });
 
@@ -1538,96 +1416,44 @@ function removeBodySafely(body) {
             }
         });
 
-        // 回転ボタン（左・右）の追加
         function rotateBody(delta) {
             const targetBody = getTargetBody();
             if (targetBody && (!targetBody.isStatic || targetBody.isStaticToggle)) {
                 Body.rotate(targetBody, delta);
-                if (targetBody.dragContext) {
-                    targetBody.dragContext.fixedAngle = targetBody.angle;
-                }
+                if (targetBody.dragContext) targetBody.dragContext.fixedAngle = targetBody.angle;
                 Body.setAngularVelocity(targetBody, 0);
                 playPopSound(500, 'sine', 0.05);
             }
         }
 
-        if (shouldLinkGroups && createdBodies.length >= 2) {
-                for (let i = 0; i < createdBodies.length - 1; i++) {
-                    const prevGroup = createdBodies[i];
-                    const nextGroup = createdBodies[i + 1];
-
-                    const constraint = Matter.Constraint.create({
-                        bodyA: prevGroup.last,
-                        bodyB: nextGroup.first,
-                        pointA: { x: 0, y: 20 },
-                        pointB: { x: 0, y: -20 },
-                        stiffness: 0.9,
-                        length: 60, // ゆとりのある長さ
-                        render: { visible: false }
-                    });
-                    
-                    constraint.isRope = true;
-                    constraint.maxLength = 60;
-
-                    Composite.add(world, constraint);
-                }
-            }
         document.getElementById('vk-rotate-left').addEventListener('click', () => rotateBody(-0.2));
         document.getElementById('vk-rotate-right').addEventListener('click', () => rotateBody(0.2));
 
         const btnWind = document.getElementById('vk-wind');
         const startWind = (e) => { e.preventDefault(); isBlowing = true; };
         const stopWind = (e) => { e.preventDefault(); isBlowing = false; };
-        
         btnWind.addEventListener('pointerdown', startWind);
         btnWind.addEventListener('pointerup', stopWind);
         btnWind.addEventListener('pointerleave', stopWind);
         btnWind.addEventListener('pointercancel', stopWind);
 
         document.getElementById('multiplySpeed')?.addEventListener('input', (e) => {
-    document.getElementById('speedValue').innerText = e.target.value;
-});
+            document.getElementById('speedValue').innerText = e.target.value;
+        });
 
-// バーチャルキーボード：Tボタン（板で連結）
-document.getElementById('vk-board')?.addEventListener('click', () => {
-    isTKeyPressed = !isTKeyPressed; 
-    isYKeyPressed = false;          
+        document.getElementById('vk-rope')?.addEventListener('click', () => {
+            setInteractionMode(activeMode === 'rope' ? 'normal' : 'rope');
+        });
 
-    if (isTKeyPressed) {
-        statusLabel.innerText = "【板連結モード】繋ぎたい2つの文字を順番にタップしてください";
-        playPopSound(600, 'square', 0.05);
-    } else {
-        boardSourceBody = null;
-        statusLabel.innerText = "通常モード";
-        playPopSound(300, 'square', 0.05);
-    }
-});
+        document.getElementById('vk-board')?.addEventListener('click', () => {
+            setInteractionMode(activeMode === 'board' ? 'normal' : 'board');
+        });
 
-// バーチャルキーボード：Yボタン（紐で連結） ※ここを vk-rope に修正
-document.getElementById('vk-rope')?.addEventListener('click', () => {
-    isYKeyPressed = !isYKeyPressed; 
-    isTKeyPressed = false;          
-
-    if (isYKeyPressed) {
-        statusLabel.innerText = "【紐連結モード】繋ぎたい2つの文字を順番にタップしてください";
-        playPopSound(600, 'square', 0.05);
-    } else {
-        linkSourceBody = null; // 変数名も正しく修正
-        statusLabel.innerText = "通常モード";
-        playPopSound(300, 'square', 0.05);
-    }
-});
-
-// バーチャルキーボード：Qボタン（選択解除・キャンセル）
-document.getElementById('vk-cancel')?.addEventListener('click', () => {
-    linkSourceBody = null;
-    boardSourceBody = null;
-    isYKeyPressed = false;
-    isTKeyPressed = false;
-    statusLabel.innerText = "連結の選択をキャンセルしました";
-    playPopSound(200, 'square', 0.05);
-});
-
+        document.getElementById('vk-cancel')?.addEventListener('click', () => {
+            setInteractionMode('normal');
+            statusLabel.innerText = "連結の選択をキャンセルしました";
+            playPopSound(200, 'square', 0.05);
+        });
     </script>
 </body>
 </html>
